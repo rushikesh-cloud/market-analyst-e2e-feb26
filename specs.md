@@ -74,6 +74,26 @@ We implement Hybrid Search using **Reciprocal Rank Fusion (RRF)** to combine:
 
 ## 5. Module Breakdown
 
+### 5.0. Notebook-First Validation
+
+Before the backend API is implemented, the system will be validated through Jupyter notebooks. These notebooks are the first executable surface for data ingestion, document loading, RAG, the three worker agents, and the supervisor agent.
+
+The notebooks must stay thin. Reusable behavior must live in structured Python modules that can later be imported by the FastAPI backend without reimplementation. Notebook cells should focus on orchestration, visual inspection, quick experiments, and validation output.
+
+Required notebooks:
+
+1. `00_environment_smoke.ipynb`
+2. `01_data_ingestion.ipynb`
+3. `02_document_loading.ipynb`
+4. `03_rag_pipeline.ipynb`
+5. `04_fundamental_agent.ipynb`
+6. `05_technical_agent.ipynb`
+7. `06_news_agent.ipynb`
+8. `07_supervisor_agent.ipynb`
+9. `08_end_to_end_validation.ipynb`
+
+Notebook-specific requirements and acceptance criteria are defined in `docs/product-specs/notebook-first-validation.md`. Reusable module boundaries for this phase are defined in `docs/design-docs/notebook-first-modularization.md`.
+
 ### 5.1. Backend (Python/LangGraph)
 
 * **State Management:** The `AgentState` object will pass the ticker, the paths to generated charts, and the retrieved RAG contexts between nodes.
@@ -89,8 +109,10 @@ We implement Hybrid Search using **Reciprocal Rank Fusion (RRF)** to combine:
 
 ## 6. Implementation Milestones
 
-1. **Phase 1:** Document Ingestion Pipeline (Azure Doc AI -> Postgres Hybrid Search).
-2. **Phase 2:** Technical Chart Generator + Multi-modal Vision Agent.
-3. **Phase 3:** News Crawler & Sentiment Integration via Tavily.
-4. **Phase 4:** LangGraph Supervisor logic and Scoring weights.
-5. **Phase 5:** React UI & Real-time Polling Integration.
+1. **Phase 0:** Notebook-first validation and reusable module scaffolding.
+2. **Phase 1:** Document Ingestion Pipeline (Azure Doc AI -> Postgres Hybrid Search).
+3. **Phase 2:** Technical Chart Generator + Multi-modal Vision Agent.
+4. **Phase 3:** News Crawler & Sentiment Integration via Tavily.
+5. **Phase 4:** LangGraph Supervisor logic and Scoring weights.
+6. **Phase 5:** FastAPI backend integration using the notebook-validated reusable modules.
+7. **Phase 6:** React UI & Real-time Polling Integration.
