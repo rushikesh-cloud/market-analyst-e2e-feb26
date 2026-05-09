@@ -1,0 +1,9 @@
+langchain>=1.2.15
+langchain-community>=0.4.1
+langchain-openai>=1.2.1
+langchain-postgres>=0.0.16
+langchain-text-splitters>=1.0.0
+pandas>=2.3.3
+pgvector>=0.3.6
+psycopg[binary]>=3.2.13
+pypdf>=6.6.1

@@ -30,6 +30,8 @@ Status: initial planning reference. This file should be regenerated or updated w
 | metadata | jsonb | Extraction metadata, table references, fiscal year hints, and source details |
 | created_at | timestamptz | Creation timestamp |
 
+Current ingestion metadata must include `source_path`, `source_file`, `company_name`, `ticker`, `filing_type`, `chunk_index`, `page_number`, `chunk_id`, and `heading_path`. Header-derived fields may also include `company`, `document`, `page`, and `section`.
+
 ### analysis_results
 
 | Column | Type | Notes |
@@ -56,6 +58,12 @@ Full-text search is a first-class schema requirement, not a later enhancement. T
 | reports | Vector index on `embedding` | Semantic similarity retrieval |
 | reports | B-tree index on `company_id` | Company-scoped retrieval |
 | companies | Unique index on `ticker` | Stable company lookup |
+
+## Current LangChain Vector Store
+
+The notebook-first backend also writes the same chunks into LangChain's Postgres vector store collection named `fundamental_report_chunks` by default. This creates LangChain-managed collection and embedding tables alongside the project-level `companies` and `reports` tables.
+
+The project-level `reports` table remains the contract for hybrid search and API parity. The LangChain vector store is used for notebook-friendly vector insertion and similarity search while the project schema matures.
 
 ## Hybrid Search Contract
 

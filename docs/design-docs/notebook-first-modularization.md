@@ -59,7 +59,7 @@ market_analyst/
 - Provider initialization and API calls.
 - Typed request and response models.
 - PDF/document extraction normalization.
-- Chunking, embedding, persistence, and hybrid retrieval.
+- Markdown normalization, header-level chunking, embedding, persistence, and hybrid retrieval.
 - Market data loading and indicator calculation.
 - Prompt construction and agent response parsing.
 - Score normalization and supervisor aggregation.
