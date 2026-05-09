@@ -67,7 +67,7 @@ We implement Hybrid Search using **Reciprocal Rank Fusion (RRF)** to combine:
 ### 4.2. Database Schema (Entities)
 
 * **`Companies`:** ID, Ticker, Name, Overall_Score, Status (Processing/Completed).
-* **`Reports`:** Company_ID, Content (Full Text), Embedding (Vector), Page_Number, Metadata.
+* **`Reports`:** Company_ID, Content (Full Text), Search_Vector (`tsvector`), Embedding (Vector), Page_Number, Metadata.
 * **`Analysis_Results`:** Company_ID, Fundamental_JSON, Technical_JSON, News_JSON, Supervisor_Summary.
 
 ---
