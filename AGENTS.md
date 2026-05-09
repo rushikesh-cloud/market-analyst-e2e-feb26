@@ -1,11 +1,12 @@
 Welcome. You are operating as an autonomous engineering agent within this repository.
 
-**CRITICAL RULE:** Do not assume context. This file is your map, not an encyclopedia. The system of record for this project is the `docs/` directory. Rely on progressive disclosure: locate the specific context you need in the designated files before executing any task.
+**CRITICAL RULE:** Do not assume context. This file is your map, not an encyclopedia. The system of record for this project is the `docs/` directory plus the top-level `specs.md`. Rely on progressive disclosure: locate the specific context you need in the designated files before executing any task.
 
 ## 1. Context Navigation & Access
 
 Use the following structured references to understand the system state before writing or modifying code.
 
+* **Working Specification:** `specs.md` (consult this for every user question before answering or changing code. Refer to its current requirements in your response when relevant, and update it in the same change set whenever the user's request adds, changes, or clarifies product behavior, acceptance criteria, scope, or constraints).
 * **Top-Level Entry:** [ARCHITECTURE.md](https://www.google.com/search?q=./ARCHITECTURE.md) (Domain models, package layering, and strict dependencies).
 * **Design & Principles:** [DESIGN.md](https://www.google.com/search?q=./DESIGN.md) and `docs/design-docs/core-beliefs.md`.
 * **Active Plans & State:** `docs/exec-plans/active/` (for current task progression) and `docs/exec-plans/tech-debt-tracker.md`.
@@ -35,6 +36,7 @@ We optimize for agent legibility, mechanical enforcement, and code consistency o
 2. **Execute:** Write application code, infrastructure, and tests simultaneously.
 3. **Verify:** You are responsible for QA. Use headless runtime tools to validate Next.js UI behavior and verify Python outputs mechanically. Ensure your code passes all structural linters.
 4. **Document:** If you make a design decision, update `docs/design-docs/`. If you leave a known issue, immediately update `docs/exec-plans/tech-debt-tracker.md`. Code changes must be self-documenting for future agents.
+5. **Commit:** Whenever new changes are added, create a git commit for those changes before final handoff. Keep commits scoped to the current request and do not include unrelated user or workspace changes.
 
 ---
 
