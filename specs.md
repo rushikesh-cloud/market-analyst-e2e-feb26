@@ -28,7 +28,7 @@ The system follows a **Supervisor-Worker** pattern. The Supervisor orchestrates 
 
 1. **Fundamental Agent:**
 * **Input:** Company Name + Uploaded PDF.
-* **Processing:** Converts report text into normalized markdown -> splits by markdown header levels -> applies size-aware chunk refinement -> stores chunks and embeddings in Postgres/pgvector.
+* **Processing:** Uses Azure AI Document Intelligence `prebuilt-layout` markdown extraction -> splits by markdown header levels -> applies size-aware chunk refinement -> stores chunks and embeddings in Postgres/pgvector.
 * **Tool:** RAG (Hybrid Search) to analyze growth, debt, and cash flow.
 * **Output:** Fundamental Score (0-100) + Rationale.
 
@@ -110,7 +110,7 @@ Notebook-specific requirements and acceptance criteria are defined in `docs/prod
 ## 6. Implementation Milestones
 
 1. **Phase 0:** Notebook-first validation and reusable module scaffolding.
-2. **Phase 1:** Document Ingestion Pipeline (PDF/Doc AI text -> Markdown -> Header Chunks -> Postgres Hybrid Search).
+2. **Phase 1:** Document Ingestion Pipeline (Azure Document Intelligence Markdown -> Header Chunks -> Postgres Hybrid Search).
 3. **Phase 2:** Technical Chart Generator + Multi-modal Vision Agent.
 4. **Phase 3:** News Crawler & Sentiment Integration via Tavily.
 5. **Phase 4:** LangGraph Supervisor logic and Scoring weights.

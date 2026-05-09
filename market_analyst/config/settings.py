@@ -34,6 +34,8 @@ class Settings:
     database_name: str
     database_user: str
     database_password: str
+    document_intelligence_endpoint: str
+    document_intelligence_key: str
     azure_openai_endpoint: str
     azure_openai_key: str
     azure_openai_version: str
@@ -70,6 +72,18 @@ class Settings:
         if missing:
             raise ValueError(f"Missing database settings: {', '.join(missing)}")
 
+    def require_document_intelligence(self) -> None:
+        missing = [
+            name
+            for name, value in {
+                "DOCUMENT_INTELLIGENCE_ENDPOINT": self.document_intelligence_endpoint,
+                "DOCUMENT_INTELLIGENCE_KEY": self.document_intelligence_key,
+            }.items()
+            if not value
+        ]
+        if missing:
+            raise ValueError(f"Missing Azure Document Intelligence settings: {', '.join(missing)}")
+
     def require_embeddings(self) -> None:
         missing = [
             name
@@ -93,6 +107,8 @@ def load_settings() -> Settings:
         database_name=os.getenv("DATABASE_NAME", ""),
         database_user=os.getenv("DATABASE_USER", ""),
         database_password=os.getenv("DATABASE_PASSWORD", ""),
+        document_intelligence_endpoint=os.getenv("DOCUMENT_INTELLIGENCE_ENDPOINT", ""),
+        document_intelligence_key=os.getenv("DOCUMENT_INTELLIGENCE_KEY", ""),
         azure_openai_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
         azure_openai_key=os.getenv("AZURE_OPENAI_KEY", ""),
         azure_openai_version=os.getenv("AZURE_OPENAI_VERSION", "2024-02-01"),

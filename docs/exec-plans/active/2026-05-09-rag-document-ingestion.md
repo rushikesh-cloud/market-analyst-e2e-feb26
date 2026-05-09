@@ -2,13 +2,13 @@
 
 ## Context
 
-The fundamental analysis path needs a first executable ingestion surface that starts with annual report PDFs, turns extracted text into markdown, chunks by markdown headers, and optionally persists the chunks into Postgres/pgvector.
+The fundamental analysis path needs a first executable ingestion surface that starts with annual report PDFs, uses Azure Document Intelligence to extract markdown, chunks by markdown headers, and optionally persists the chunks into Postgres/pgvector.
 
 ## Scope
 
-- Add a reusable backend import surface for report discovery, markdown conversion, header-level chunking, embeddings, and vector persistence.
+- Add a reusable backend import surface for report discovery, Azure Document Intelligence markdown extraction, header-level chunking, embeddings, and vector persistence.
 - Keep the notebook thin and focused on orchestration plus chunk inspection.
-- Use LangChain components where they fit: PDF loading, markdown header splitting, recursive chunk refinement, Azure OpenAI embeddings, and Postgres vector storage.
+- Use LangChain components where they fit: markdown header splitting, recursive chunk refinement, Azure OpenAI embeddings, and Postgres vector storage.
 - Mirror persisted chunks into the project-level `companies` and `reports` tables for full-text search and future hybrid retrieval.
 
 ## Acceptance Criteria

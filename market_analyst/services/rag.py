@@ -5,10 +5,14 @@ import re
 from pathlib import Path
 from typing import Iterable
 
-from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
 from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 
+from market_analyst.config.settings import load_settings
+from market_analyst.providers.document_intelligence import (
+    analyze_report_to_markdown,
+    build_document_intelligence_client,
+)
 from market_analyst.types.documents import ChunkRecord, MarkdownReport, ReportInput
 
 
@@ -38,30 +42,18 @@ def infer_report_input(path: Path) -> ReportInput:
 
 
 def load_report_as_markdown(report: ReportInput, max_pages: int | None = None) -> MarkdownReport:
-    loader = PyPDFLoader(str(report.path))
-    pages = loader.load()
-    if max_pages is not None:
-        pages = pages[:max_pages]
-
-    sections = [
-        f"# {report.company_name}",
-        f"## {report.path.name}",
-        "",
-    ]
-    for index, page in enumerate(pages, start=1):
-        text = page.page_content or ""
-        sections.append(f"### Page {index}")
-        sections.append(_page_text_to_markdown(text))
-        sections.append("")
-
-    return MarkdownReport(report=report, markdown="\n".join(sections).strip() + "\n", page_count=len(pages))
+    settings = load_settings()
+    client = build_document_intelligence_client(settings)
+    return analyze_report_to_markdown(client, report, max_pages=max_pages)
 
 
 def build_markdown_reports(
     reports: Iterable[ReportInput],
     max_pages: int | None = None,
 ) -> list[MarkdownReport]:
-    return [load_report_as_markdown(report, max_pages=max_pages) for report in reports]
+    settings = load_settings()
+    client = build_document_intelligence_client(settings)
+    return [analyze_report_to_markdown(client, report, max_pages=max_pages) for report in reports]
 
 
 def split_markdown_report(
@@ -118,47 +110,6 @@ def build_header_chunks(
 
 def to_langchain_documents(chunks: Iterable[ChunkRecord]) -> list[Document]:
     return [Document(page_content=chunk.content, metadata=chunk.metadata) for chunk in chunks]
-
-
-def _page_text_to_markdown(text: str) -> str:
-    lines = [_clean_line(line) for line in text.splitlines()]
-    output: list[str] = []
-    previous_blank = True
-    for line in lines:
-        if not line:
-            if not previous_blank:
-                output.append("")
-            previous_blank = True
-            continue
-        if _looks_like_heading(line):
-            output.append(f"#### {line}")
-        else:
-            output.append(line)
-        previous_blank = False
-    return "\n".join(output).strip()
-
-
-def _clean_line(line: str) -> str:
-    return re.sub(r"\s+", " ", line).strip()
-
-
-def _looks_like_heading(line: str) -> bool:
-    if len(line) < 4 or len(line) > 100:
-        return False
-    if line.endswith((".", ",", ";", ":")) and len(line.split()) > 8:
-        return False
-    letters = [char for char in line if char.isalpha()]
-    if len(letters) < 3:
-        return False
-    upper_ratio = sum(char.isupper() for char in letters) / len(letters)
-    if upper_ratio >= 0.65:
-        return True
-    if re.match(r"^(\d+(\.\d+)*|[A-Z])[\).:\-]\s+\w+", line):
-        return True
-    words = line.split()
-    title_case_words = sum(1 for word in words if word[:1].isupper())
-    return 2 <= len(words) <= 8 and title_case_words >= max(2, len(words) - 1)
-
 
 def _parse_page_number(page_label: object) -> int | None:
     if not page_label:
