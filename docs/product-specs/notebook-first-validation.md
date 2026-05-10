@@ -22,6 +22,12 @@ Create the notebooks in this order:
 | 07 | `07_supervisor_agent.ipynb` | Run the first notebook-facing LangChain `create_agent` object over the RAG store and use it to answer annual-report questions before the full supervisor graph is implemented. | `services.agent`, later `runtime.graph`, `services.supervisor` |
 | 08 | `08_end_to_end_validation.ipynb` | Run a complete sample company workflow and capture outputs for backend parity tests. | all reusable surfaces |
 
+Current companion notebook:
+
+| Notebook | Goal | Reusable module surface |
+| --- | --- | --- |
+| `04_rag_agent_end_to_end.ipynb` | Run one complete document-to-agent RAG flow: select a PDF, extract markdown, inspect chunks and preserved tables, persist chunks to vector/full-text stores, run full-text/vector/hybrid retrieval, and ask a fundamentals question through the RAG agent. | `backend.ingest_reports`, `services.rag`, `repositories.vector_db`, `services.agent` |
+
 ## Notebook Principles
 
 - Keep notebooks thin: orchestration, visual inspection, temporary experiments, and result display belong in cells.
@@ -33,6 +39,7 @@ Create the notebooks in this order:
 - The RAG notebook must display markdown previews, header-level chunk samples, full-text search results, vector search results, and the final fused hybrid results separately.
 - The RAG splitter must keep each extracted HTML or markdown table inside a single chunk, adding bounded text context from before and after the table. Table chunks may exceed the nominal chunk target rather than splitting the table.
 - The first runnable agent notebook must construct the agent through LangChain `create_agent`, expose a retrieval tool backed by the shared hybrid-search module, and keep model/provider setup in reusable Python modules.
+- The end-to-end RAG agent notebook must make vector DB writes explicit in a run-configuration cell, show retrieved context before invoking the model, and display a compact agent/tool trace after the answer.
 
 ## Acceptance Criteria
 

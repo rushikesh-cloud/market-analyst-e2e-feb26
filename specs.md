@@ -78,7 +78,7 @@ We implement Hybrid Search using **Reciprocal Rank Fusion (RRF)** to combine:
 
 Before the backend API is implemented, the system will be validated through Jupyter notebooks. These notebooks are the first executable surface for data ingestion, document loading, RAG, the three worker agents, and the supervisor agent.
 
-The notebooks must stay thin. Reusable behavior must live in structured Python modules that can later be imported by the FastAPI backend without reimplementation. Notebook cells should focus on orchestration, visual inspection, quick experiments, and validation output. The first runnable agent notebook uses LangChain `create_agent` from a shared service module so the notebook validates the same object shape that later runtime code can reuse.
+The notebooks must stay thin. Reusable behavior must live in structured Python modules that can later be imported by the FastAPI backend without reimplementation. Notebook cells should focus on orchestration, visual inspection, quick experiments, and validation output. The first runnable agent notebook uses LangChain `create_agent` from a shared service module so the notebook validates the same object shape that later runtime code can reuse. The end-to-end RAG agent notebook must demonstrate document selection, Azure Document Intelligence extraction, table-aware chunk inspection, vector DB persistence, full-text/vector/hybrid retrieval, and agentic fundamentals Q&A in one flow.
 
 Required notebooks:
 
@@ -91,6 +91,10 @@ Required notebooks:
 7. `06_news_agent.ipynb`
 8. `07_supervisor_agent.ipynb`
 9. `08_end_to_end_validation.ipynb`
+
+Current companion notebook:
+
+- `04_rag_agent_end_to_end.ipynb`: runnable document-to-RAG-agent validation path for fundamentals questions before the dedicated worker-agent notebooks are fully split out.
 
 Notebook-specific requirements and acceptance criteria are defined in `docs/product-specs/notebook-first-validation.md`. Reusable module boundaries for this phase are defined in `docs/design-docs/notebook-first-modularization.md`.
 

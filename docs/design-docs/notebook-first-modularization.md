@@ -50,6 +50,7 @@ market_analyst/
 
 - Choosing sample companies and input files.
 - Displaying extracted pages, tables, chunks, retrieval results, charts, and final reports.
+- Running end-to-end validation flows that stitch reusable modules together for inspection, including document-to-RAG-agent demos.
 - Running quick experiments and comparing outputs.
 - Calling reusable module functions in a readable sequence.
 - Capturing validation output for API parity.
