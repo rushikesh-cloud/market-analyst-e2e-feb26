@@ -62,7 +62,7 @@ market_analyst/
 - Typed request and response models.
 - PDF/document extraction normalization.
 - Azure Document Intelligence markdown extraction, header-level chunking, table-aware chunk preservation, embedding, persistence, and hybrid retrieval.
-- Market data loading and indicator calculation.
+- Market data loading, indicator calculation, technical-chart generation, and multimodal chart analysis.
 - Prompt construction and agent response parsing.
 - LangChain `create_agent` construction for notebook-facing agents.
 - Score normalization and supervisor aggregation.

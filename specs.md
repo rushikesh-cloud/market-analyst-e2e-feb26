@@ -35,8 +35,8 @@ The system follows a **Supervisor-Worker** pattern. The Supervisor orchestrates 
 
 2. **Technical Agent:**
 * **Input:** Ticker Symbol.
-* **Processing:** Pulls data from `yfinance` -> Generates OHLC charts with indicators (RSI, MACD) -> Converts to Image.
-* **Tool:** Multi-modal LLM (GPT-4o-mini) to "see" the chart and identify patterns (Support/Resistance, Breakouts).
+* **Processing:** Pulls data from `yfinance` -> Generates technical charts with moving averages, RSI, and MACD -> Saves the chart as an image artifact.
+* **Tool:** Multi-modal Azure OpenAI chat model to inspect the chart image and identify trend, momentum, support/resistance, breakout/breakdown risk, and a technical score.
 * **Output:** Technical Score (0-100) + Trend Analysis.
 
 
