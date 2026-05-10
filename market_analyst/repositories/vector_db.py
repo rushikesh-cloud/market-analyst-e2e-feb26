@@ -4,13 +4,13 @@ from collections.abc import Iterable, Sequence
 from uuid import uuid4
 
 import psycopg
+from langchain_core.documents import Document
 from langchain_openai import AzureOpenAIEmbeddings
 from langchain_postgres import PGVector
 from pgvector.psycopg import register_vector
 from psycopg.types.json import Jsonb
 
 from market_analyst.config.settings import Settings
-from market_analyst.types.documents import ChunkRecord
 
 
 def build_embeddings(settings: Settings) -> AzureOpenAIEmbeddings:
@@ -39,37 +39,14 @@ def build_vector_store(
     )
 
 
-def embed_chunks(
-    embeddings: AzureOpenAIEmbeddings,
-    chunks: Sequence[ChunkRecord],
-    batch_size: int = 32,
-) -> list[list[float]]:
-    vectors: list[list[float]] = []
-    for start in range(0, len(chunks), batch_size):
-        batch = chunks[start : start + batch_size]
-        vectors.extend(embeddings.embed_documents([chunk.content for chunk in batch]))
-    return vectors
-
-
 def add_chunks_to_vector_store(
     vector_store: PGVector,
-    chunks: Sequence[ChunkRecord],
-    vectors: Sequence[Sequence[float]],
-    batch_size: int = 32,
+    chunks: Sequence[Document],
 ) -> list[str]:
-    ids: list[str] = []
-    for start in range(0, len(chunks), batch_size):
-        batch = chunks[start : start + batch_size]
-        batch_vectors = vectors[start : start + batch_size]
-        ids.extend(
-            vector_store.add_embeddings(
-                texts=[chunk.content for chunk in batch],
-                embeddings=[list(vector) for vector in batch_vectors],
-                metadatas=[chunk.metadata for chunk in batch],
-                ids=[chunk.chunk_id for chunk in batch],
-            )
-        )
-    return ids
+    if not chunks:
+        return []
+    ids = [str(chunk.id or chunk.metadata["chunk_id"]) for chunk in chunks]
+    return vector_store.add_documents(documents=list(chunks), ids=ids)
 
 
 def ensure_project_schema(settings: Settings) -> None:
@@ -115,13 +92,9 @@ def ensure_project_schema(settings: Settings) -> None:
 
 def sync_chunks_to_project_tables(
     settings: Settings,
-    chunks: Sequence[ChunkRecord],
-    vectors: Sequence[Sequence[float]],
+    chunks: Sequence[Document],
     replace_source: bool = True,
 ) -> int:
-    if len(chunks) != len(vectors):
-        raise ValueError("chunks and vectors must have the same length")
-
     ensure_project_schema(settings)
     inserted = 0
     with psycopg.connect(settings.psycopg_dsn) as conn:
@@ -133,7 +106,7 @@ def sync_chunks_to_project_tables(
                     cur.execute("DELETE FROM reports WHERE source_path = %s", (source_path,))
 
             company_ids: dict[str, str] = {}
-            for chunk, vector in zip(chunks, vectors):
+            for chunk in chunks:
                 ticker = str(chunk.metadata["ticker"])
                 if ticker not in company_ids:
                     company_ids[ticker] = _upsert_company(
@@ -159,7 +132,7 @@ def sync_chunks_to_project_tables(
                         %s,
                         %s,
                         to_tsvector('english', %s),
-                        %s,
+                        NULL,
                         %s,
                         %s
                     )
@@ -168,9 +141,8 @@ def sync_chunks_to_project_tables(
                         str(uuid4()),
                         company_ids[ticker],
                         chunk.metadata["source_path"],
-                        chunk.content,
+                        chunk.page_content,
                         _search_text(chunk),
-                        list(vector),
                         chunk.metadata.get("page_number"),
                         Jsonb(chunk.metadata),
                     ),
@@ -296,12 +268,12 @@ def _upsert_company(cur: psycopg.Cursor, ticker: str, name: str) -> str:
     return str(row[0])
 
 
-def _search_text(chunk: ChunkRecord) -> str:
+def _search_text(chunk: Document) -> str:
     parts: Iterable[object] = (
         chunk.metadata.get("ticker"),
         chunk.metadata.get("company_name"),
         chunk.metadata.get("filing_type"),
         chunk.metadata.get("heading_path"),
-        chunk.content,
+        chunk.page_content,
     )
     return " ".join(str(part) for part in parts if part)

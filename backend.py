@@ -8,7 +8,6 @@ from market_analyst.repositories.vector_db import (
     add_chunks_to_vector_store,
     build_embeddings,
     build_vector_store,
-    embed_chunks,
     full_text_search,
     hybrid_search,
     sync_chunks_to_project_tables,
@@ -36,10 +35,9 @@ def ingest_reports(
 
     settings = load_settings()
     embeddings = build_embeddings(settings)
-    vectors = embed_chunks(embeddings, chunks)
     vector_store = build_vector_store(settings, embeddings, reset_collection=reset_collection)
-    vector_ids = add_chunks_to_vector_store(vector_store, chunks, vectors)
-    report_rows = sync_chunks_to_project_tables(settings, chunks, vectors, replace_source=True)
+    vector_ids = add_chunks_to_vector_store(vector_store, chunks)
+    report_rows = sync_chunks_to_project_tables(settings, chunks, replace_source=True)
     return IngestionResult(
         markdown_reports=markdown_reports,
         chunks=chunks,
@@ -72,8 +70,8 @@ def main() -> None:
     print(f"vector_ids={len(result.vector_ids)}")
     print(f"reports_rows={result.reports_rows}")
     for chunk in result.chunks[:5]:
-        preview = chunk.content.replace("\n", " ")[:180]
-        print(f"- {chunk.chunk_id} | {chunk.heading_path} | {preview}")
+        preview = chunk.page_content.replace("\n", " ")[:180]
+        print(f"- {chunk.id} | {chunk.metadata.get('heading_path')} | {preview}")
 
 
 if __name__ == "__main__":

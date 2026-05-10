@@ -9,11 +9,8 @@ from langchain_core.documents import Document
 from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 
 from market_analyst.config.settings import load_settings
-from market_analyst.providers.document_intelligence import (
-    analyze_report_to_markdown,
-    build_document_intelligence_client,
-)
-from market_analyst.types.documents import ChunkRecord, MarkdownReport, ReportInput
+from market_analyst.providers.document_intelligence import analyze_report_to_markdown
+from market_analyst.types.documents import MarkdownReport, ReportInput
 
 
 HEADER_SPLITTER = MarkdownHeaderTextSplitter(
@@ -43,8 +40,7 @@ def infer_report_input(path: Path) -> ReportInput:
 
 def load_report_as_markdown(report: ReportInput, max_pages: int | None = None) -> MarkdownReport:
     settings = load_settings()
-    client = build_document_intelligence_client(settings)
-    return analyze_report_to_markdown(client, report, max_pages=max_pages)
+    return analyze_report_to_markdown(settings, report, max_pages=max_pages)
 
 
 def build_markdown_reports(
@@ -52,15 +48,14 @@ def build_markdown_reports(
     max_pages: int | None = None,
 ) -> list[MarkdownReport]:
     settings = load_settings()
-    client = build_document_intelligence_client(settings)
-    return [analyze_report_to_markdown(client, report, max_pages=max_pages) for report in reports]
+    return [analyze_report_to_markdown(settings, report, max_pages=max_pages) for report in reports]
 
 
 def split_markdown_report(
     markdown_report: MarkdownReport,
     chunk_size: int = 1400,
     chunk_overlap: int = 180,
-) -> list[ChunkRecord]:
+) -> list[Document]:
     header_documents = HEADER_SPLITTER.split_text(markdown_report.markdown)
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
@@ -69,7 +64,7 @@ def split_markdown_report(
     )
     split_documents = splitter.split_documents(header_documents)
 
-    chunks: list[ChunkRecord] = []
+    chunks: list[Document] = []
     for index, doc in enumerate(split_documents):
         metadata = dict(doc.metadata)
         metadata.update(
@@ -87,7 +82,7 @@ def split_markdown_report(
         chunk_id = _chunk_id(markdown_report.report, index, content)
         metadata["chunk_id"] = chunk_id
         metadata["heading_path"] = _heading_path(metadata)
-        chunks.append(ChunkRecord(chunk_id=chunk_id, content=content, metadata=metadata))
+        chunks.append(Document(id=chunk_id, page_content=content, metadata=metadata))
     return chunks
 
 
@@ -95,8 +90,8 @@ def build_header_chunks(
     markdown_reports: Iterable[MarkdownReport],
     chunk_size: int = 1400,
     chunk_overlap: int = 180,
-) -> list[ChunkRecord]:
-    chunks: list[ChunkRecord] = []
+) -> list[Document]:
+    chunks: list[Document] = []
     for markdown_report in markdown_reports:
         chunks.extend(
             split_markdown_report(
@@ -107,9 +102,6 @@ def build_header_chunks(
         )
     return chunks
 
-
-def to_langchain_documents(chunks: Iterable[ChunkRecord]) -> list[Document]:
-    return [Document(page_content=chunk.content, metadata=chunk.metadata) for chunk in chunks]
 
 def _parse_page_number(page_label: object) -> int | None:
     if not page_label:

@@ -25,7 +25,7 @@ Status: initial planning reference. This file should be regenerated or updated w
 | source_path | text | Local path or blob URI for the report |
 | content | text | Extracted chunk text |
 | search_vector | tsvector | Generated full-text search vector derived from `content` and selected metadata |
-| embedding | vector | Embedding for semantic retrieval |
+| embedding | vector | Reserved for future project-owned semantic retrieval; current ingestion leaves this nullable and stores semantic vectors in LangChain PGVector |
 | page_number | integer | Source page number when available |
 | metadata | jsonb | Extraction metadata, table references, fiscal year hints, and source details |
 | created_at | timestamptz | Creation timestamp |
@@ -46,7 +46,7 @@ Current ingestion metadata must include `source_path`, `source_file`, `company_n
 
 ## Retrieval Requirement
 
-The RAG pipeline must support hybrid search over `reports.search_vector` and `reports.embedding`, using Reciprocal Rank Fusion to combine full-text and vector rankings.
+The RAG pipeline must support hybrid search over `reports.search_vector` and the LangChain PGVector collection, using Reciprocal Rank Fusion to combine full-text and vector rankings.
 
 Full-text search is a first-class schema requirement, not a later enhancement. The implementation should derive `reports.search_vector` from normalized report content and useful structured fields such as ticker, company name, fiscal year, filing type, headings, and page labels when available.
 
@@ -55,15 +55,15 @@ Full-text search is a first-class schema requirement, not a later enhancement. T
 | Table | Index | Purpose |
 | --- | --- | --- |
 | reports | GIN index on `search_vector` | Keyword and fiscal-year precision for full-text retrieval |
-| reports | Vector index on `embedding` | Semantic similarity retrieval |
+| reports | Vector index on `embedding` | Reserved for future project-owned semantic retrieval |
 | reports | B-tree index on `company_id` | Company-scoped retrieval |
 | companies | Unique index on `ticker` | Stable company lookup |
 
 ## Current LangChain Vector Store
 
-The notebook-first backend also writes the same chunks into LangChain's Postgres vector store collection named `fundamental_report_chunks` by default. This creates LangChain-managed collection and embedding tables alongside the project-level `companies` and `reports` tables.
+The notebook-first backend writes chunks into LangChain's Postgres vector store collection named `fundamental_report_chunks` by default. This creates LangChain-managed collection and embedding tables alongside the project-level `companies` and `reports` tables.
 
-The project-level `reports` table remains the contract for hybrid search and API parity. The LangChain vector store is used for notebook-friendly vector insertion and similarity search while the project schema matures.
+The project-level `reports` table remains the full-text search and API-parity surface. The LangChain vector store is the current semantic retrieval surface; `reports.embedding` remains nullable until the project needs a project-owned vector index.
 
 ## Hybrid Search Contract
 
