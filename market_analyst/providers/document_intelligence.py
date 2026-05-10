@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from io import BytesIO
 from pathlib import Path
+from typing import Iterator
 
 import fitz
 from langchain_community.document_loaders import AzureAIDocumentIntelligenceLoader
@@ -39,44 +40,49 @@ def analyze_report_to_markdown(
     ]
     page_count = 0
 
-    for page_offset, document_bytes in _iter_pdf_batches(report.path, max_pages=max_pages, batch_pages=batch_pages):
+    for page_offset, page_total, document_bytes in _iter_pdf_batches(
+        report.path,
+        max_pages=max_pages,
+        batch_pages=batch_pages,
+    ):
         loader = build_document_intelligence_loader(settings, document_bytes.getvalue())
-        documents = loader.load()
-        sections.extend(_page_sections_from_documents(documents, page_offset=page_offset))
-        page_count += _document_batch_page_count(document_bytes)
+        sections.extend(_page_sections_from_documents(loader.load(), page_offset=page_offset))
+        page_count += page_total
 
     markdown = "\n".join(sections).strip() + "\n"
     return MarkdownReport(report=report, markdown=markdown, page_count=page_count)
 
 
 def _page_sections_from_documents(documents: list[Document], page_offset: int) -> list[str]:
-    sections: list[str] = []
-
     if len(documents) == 1 and documents[0].metadata.get("pages"):
-        document = documents[0]
-        content = document.page_content
-        for page in document.metadata.get("pages", []):
-            page_number = page_offset + int(page.get("page_number") or 0)
-            page_markdown = _normalize_page_markdown(_slice_page_content(content, page.get("spans"))).strip()
-            sections.append(f"### Page {page_number}")
-            if page_markdown:
-                sections.append(page_markdown)
-            sections.append("")
-        return sections
-
-    for index, document in enumerate(documents, start=1):
-        content = _normalize_page_markdown(document.page_content).strip()
-        page_number = _document_page_number(document, default=page_offset + index)
-        sections.append(f"### Page {page_number}")
-        if content:
-            sections.append(content)
-        sections.append("")
+        return list(_sections_from_markdown_document(documents[0], page_offset=page_offset))
 
     if not documents:
-        sections.append("### Document")
-        sections.append("")
+        return ["### Document", ""]
 
-    return sections
+    return [
+        section
+        for index, document in enumerate(documents, start=1)
+        for section in _section(
+            page_number=_document_page_number(document, default=page_offset + index),
+            content=document.page_content,
+        )
+    ]
+
+
+def _sections_from_markdown_document(document: Document, page_offset: int) -> Iterator[str]:
+    for page in document.metadata["pages"]:
+        page_number = page_offset + int(page.get("page_number") or 0)
+        content = _slice_page_content(document.page_content, page.get("spans"))
+        yield from _section(page_number=page_number, content=content)
+
+
+def _section(page_number: int, content: str) -> Iterator[str]:
+    yield f"### Page {page_number}"
+    page_markdown = _normalize_page_markdown(content).strip()
+    if page_markdown:
+        yield page_markdown
+    yield ""
 
 
 def _slice_page_content(content: str, spans: list[dict[str, object]] | None) -> str:
@@ -92,7 +98,7 @@ def _slice_page_content(content: str, spans: list[dict[str, object]] | None) -> 
     return "\n".join(parts)
 
 
-def _iter_pdf_batches(path: Path, max_pages: int | None, batch_pages: int) -> list[tuple[int, BytesIO]]:
+def _iter_pdf_batches(path: Path, max_pages: int | None, batch_pages: int) -> Iterator[tuple[int, int, BytesIO]]:
     if batch_pages < 1:
         raise ValueError("batch_pages must be at least 1")
 
@@ -100,7 +106,6 @@ def _iter_pdf_batches(path: Path, max_pages: int | None, batch_pages: int) -> li
     total_pages = source_pdf.page_count
     selected_pages = total_pages if max_pages is None else min(max_pages, total_pages)
 
-    batches: list[tuple[int, BytesIO]] = []
     try:
         for start in range(0, selected_pages, batch_pages):
             end = min(start + batch_pages, selected_pages)
@@ -109,23 +114,11 @@ def _iter_pdf_batches(path: Path, max_pages: int | None, batch_pages: int) -> li
                 batch_pdf.insert_pdf(source_pdf, from_page=start, to_page=end - 1)
                 buffer = BytesIO(batch_pdf.tobytes(garbage=4, deflate=True))
                 buffer.seek(0)
-                batches.append((start, buffer))
+                yield start, end - start, buffer
             finally:
                 batch_pdf.close()
-        return batches
     finally:
         source_pdf.close()
-
-
-def _document_batch_page_count(document_bytes: BytesIO) -> int:
-    position = document_bytes.tell()
-    document_bytes.seek(0)
-    document = fitz.open(stream=document_bytes.read(), filetype="pdf")
-    try:
-        return document.page_count
-    finally:
-        document.close()
-        document_bytes.seek(position)
 
 
 def _document_page_number(document: Document, default: int) -> int:

@@ -7,7 +7,7 @@ import psycopg
 from langchain_core.documents import Document
 from langchain_openai import AzureOpenAIEmbeddings
 from langchain_postgres import PGVector
-from pgvector.psycopg import register_vector
+from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from market_analyst.config.settings import Settings
@@ -45,7 +45,7 @@ def add_chunks_to_vector_store(
 ) -> list[str]:
     if not chunks:
         return []
-    ids = [str(chunk.id or chunk.metadata["chunk_id"]) for chunk in chunks]
+    ids = [_document_id(chunk) for chunk in chunks]
     return vector_store.add_documents(documents=list(chunks), ids=ids)
 
 
@@ -55,7 +55,6 @@ def ensure_project_schema(settings: Settings) -> None:
         with conn.cursor() as cur:
             cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
         conn.commit()
-        register_vector(conn)
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -98,7 +97,6 @@ def sync_chunks_to_project_tables(
     ensure_project_schema(settings)
     inserted = 0
     with psycopg.connect(settings.psycopg_dsn) as conn:
-        register_vector(conn)
         with conn.cursor() as cur:
             if replace_source:
                 source_paths = sorted({chunk.metadata["source_path"] for chunk in chunks})
@@ -180,19 +178,19 @@ def full_text_search(
         ORDER BY full_text_rank DESC
         LIMIT %s
     """
-    with psycopg.connect(settings.psycopg_dsn) as conn:
+    with psycopg.connect(settings.psycopg_dsn, row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(sql, params)
             rows = cur.fetchall()
     return [
         {
-            "id": (row[4] or {}).get("chunk_id") or str(row[0]),
-            "report_id": str(row[0]),
-            "ticker": row[1],
-            "company_name": row[2],
-            "content": row[3],
-            "metadata": row[4],
-            "full_text_rank": float(row[5]),
+            "id": (row["metadata"] or {}).get("chunk_id") or str(row["id"]),
+            "report_id": str(row["id"]),
+            "ticker": row["ticker"],
+            "company_name": row["company_name"],
+            "content": row["content"],
+            "metadata": row["metadata"],
+            "full_text_rank": float(row["full_text_rank"]),
         }
         for row in rows
     ]
@@ -210,7 +208,7 @@ def vector_search(
     results = vector_store.similarity_search_with_score(query=query, k=limit, filter=filter_arg)
     return [
         {
-            "id": doc.metadata.get("chunk_id"),
+            "id": doc.metadata.get("chunk_id") or doc.id,
             "ticker": doc.metadata.get("ticker"),
             "company_name": doc.metadata.get("company_name"),
             "content": doc.page_content,
@@ -266,6 +264,10 @@ def _upsert_company(cur: psycopg.Cursor, ticker: str, name: str) -> str:
     if row is None:
         raise RuntimeError(f"Failed to upsert company {ticker}")
     return str(row[0])
+
+
+def _document_id(document: Document) -> str:
+    return str(document.id or document.metadata["chunk_id"])
 
 
 def _search_text(chunk: Document) -> str:
