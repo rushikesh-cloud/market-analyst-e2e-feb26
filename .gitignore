@@ -22,7 +22,6 @@ env/
 .ipynb_checkpoints/
 notebooks/.ipynb_checkpoints/
 notebooks/outputs/
-notebooks/quick_test.ipynb
 
 # Local input/output artifacts
 reports/
