@@ -39,6 +39,7 @@ class Settings:
     azure_openai_endpoint: str
     azure_openai_key: str
     azure_openai_version: str
+    azure_openai_chat_deployment: str
     azure_openai_embedding_deployment: str
     vector_collection_name: str = "fundamental_report_chunks"
 
@@ -98,6 +99,20 @@ class Settings:
         if missing:
             raise ValueError(f"Missing Azure OpenAI embedding settings: {', '.join(missing)}")
 
+    def require_chat_model(self) -> None:
+        missing = [
+            name
+            for name, value in {
+                "AZURE_OPENAI_ENDPOINT": self.azure_openai_endpoint,
+                "AZURE_OPENAI_KEY": self.azure_openai_key,
+                "AZURE_OPENAI_VERSION": self.azure_openai_version,
+                "AZURE_OPENAI_DEPLOYMENT": self.azure_openai_chat_deployment,
+            }.items()
+            if not value
+        ]
+        if missing:
+            raise ValueError(f"Missing Azure OpenAI chat settings: {', '.join(missing)}")
+
 
 def load_settings() -> Settings:
     load_env_file()
@@ -112,6 +127,11 @@ def load_settings() -> Settings:
         azure_openai_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
         azure_openai_key=os.getenv("AZURE_OPENAI_KEY", ""),
         azure_openai_version=os.getenv("AZURE_OPENAI_VERSION", "2024-02-01"),
+        azure_openai_chat_deployment=(
+            os.getenv("AZURE_OPENAI_DEPLOYMENT", "")
+            or os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "")
+            or os.getenv("AZURE_OPENAI_MODEL_DEPLOYMENT", "")
+        ),
         azure_openai_embedding_deployment=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", ""),
         vector_collection_name=os.getenv("VECTOR_COLLECTION_NAME", "fundamental_report_chunks"),
     )

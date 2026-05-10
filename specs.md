@@ -78,7 +78,7 @@ We implement Hybrid Search using **Reciprocal Rank Fusion (RRF)** to combine:
 
 Before the backend API is implemented, the system will be validated through Jupyter notebooks. These notebooks are the first executable surface for data ingestion, document loading, RAG, the three worker agents, and the supervisor agent.
 
-The notebooks must stay thin. Reusable behavior must live in structured Python modules that can later be imported by the FastAPI backend without reimplementation. Notebook cells should focus on orchestration, visual inspection, quick experiments, and validation output.
+The notebooks must stay thin. Reusable behavior must live in structured Python modules that can later be imported by the FastAPI backend without reimplementation. Notebook cells should focus on orchestration, visual inspection, quick experiments, and validation output. The first runnable agent notebook uses LangChain `create_agent` from a shared service module so the notebook validates the same object shape that later runtime code can reuse.
 
 Required notebooks:
 

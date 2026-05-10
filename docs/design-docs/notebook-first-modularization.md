@@ -33,6 +33,7 @@ market_analyst/
     ingestion.py
     document_loading.py
     rag.py
+    agent.py
     charting.py
     scoring.py
     agents/
@@ -62,6 +63,7 @@ market_analyst/
 - Azure Document Intelligence markdown extraction, header-level chunking, table-aware chunk preservation, embedding, persistence, and hybrid retrieval.
 - Market data loading and indicator calculation.
 - Prompt construction and agent response parsing.
+- LangChain `create_agent` construction for notebook-facing agents.
 - Score normalization and supervisor aggregation.
 - LangGraph state definitions and graph construction.
 

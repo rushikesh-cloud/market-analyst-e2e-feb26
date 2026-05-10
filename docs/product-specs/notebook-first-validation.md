@@ -19,7 +19,7 @@ Create the notebooks in this order:
 | 04 | `04_fundamental_agent.ipynb` | Use RAG context to produce growth, debt, cash-flow, and risk analysis. | `services.agents.fundamental` |
 | 05 | `05_technical_agent.ipynb` | Pull price history, generate indicators/charts, and produce technical analysis. | `services.agents.technical` |
 | 06 | `06_news_agent.ipynb` | Pull current news, summarize events, and score sentiment. | `services.agents.news` |
-| 07 | `07_supervisor_agent.ipynb` | Combine fundamental, technical, and news outputs into a final market view. | `runtime.graph`, `services.supervisor` |
+| 07 | `07_supervisor_agent.ipynb` | Run the first notebook-facing LangChain `create_agent` object over the RAG store and use it to answer annual-report questions before the full supervisor graph is implemented. | `services.agent`, later `runtime.graph`, `services.supervisor` |
 | 08 | `08_end_to_end_validation.ipynb` | Run a complete sample company workflow and capture outputs for backend parity tests. | all reusable surfaces |
 
 ## Notebook Principles
@@ -32,6 +32,7 @@ Create the notebooks in this order:
 - Any notebook-only experiment that becomes useful twice should be promoted into a reusable module before backend work begins.
 - The RAG notebook must display markdown previews, header-level chunk samples, full-text search results, vector search results, and the final fused hybrid results separately.
 - The RAG splitter must keep each extracted HTML or markdown table inside a single chunk, adding bounded text context from before and after the table. Table chunks may exceed the nominal chunk target rather than splitting the table.
+- The first runnable agent notebook must construct the agent through LangChain `create_agent`, expose a retrieval tool backed by the shared hybrid-search module, and keep model/provider setup in reusable Python modules.
 
 ## Acceptance Criteria
 
