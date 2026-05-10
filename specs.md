@@ -42,9 +42,9 @@ The system follows a **Supervisor-Worker** pattern. The Supervisor orchestrates 
 
 3. **News Agent:**
 * **Input:** Company Name + Ticker.
-* **Tool:** Tavily Search.
-* **Processing:** Scrapes latest headlines -> Sentiment Analysis.
-* **Output:** Sentiment Score (0-100) + Recent News Bulletins.
+* **Tool:** Tavily Search API through the `langchain-tavily` LangChain tool.
+* **Processing:** Runs recent company/ticker news search plus sector-context search, separates favorable and adverse developments, identifies stock implications and watch items, and returns source-attributed JSON.
+* **Output:** Sentiment Score (0-100), positive/negative news bullets, sector context, stock implications, watch items, and source links.
 
 
 4. **Supervisor Agent:**
@@ -116,7 +116,7 @@ Notebook-specific requirements and acceptance criteria are defined in `docs/prod
 1. **Phase 0:** Notebook-first validation and reusable module scaffolding.
 2. **Phase 1:** Document Ingestion Pipeline (Azure Document Intelligence Markdown -> Header Chunks -> Postgres Hybrid Search).
 3. **Phase 2:** Technical Chart Generator + Multi-modal Vision Agent.
-4. **Phase 3:** News Crawler & Sentiment Integration via Tavily.
+4. **Phase 3:** News Crawler & Sentiment Integration via Tavily and LangChain `create_agent`.
 5. **Phase 4:** LangGraph Supervisor logic and Scoring weights.
 6. **Phase 5:** FastAPI backend integration using the notebook-validated reusable modules.
 7. **Phase 6:** React UI & Real-time Polling Integration.

@@ -41,6 +41,7 @@ class Settings:
     azure_openai_version: str
     azure_openai_chat_deployment: str
     azure_openai_embedding_deployment: str
+    tavily_api_key: str
     vector_collection_name: str = "fundamental_report_chunks"
 
     @property
@@ -113,6 +114,10 @@ class Settings:
         if missing:
             raise ValueError(f"Missing Azure OpenAI chat settings: {', '.join(missing)}")
 
+    def require_tavily(self) -> None:
+        if not self.tavily_api_key:
+            raise ValueError("Missing Tavily setting: TAVILY_API_KEY")
+
 
 def load_settings() -> Settings:
     load_env_file()
@@ -133,5 +138,6 @@ def load_settings() -> Settings:
             or os.getenv("AZURE_OPENAI_MODEL_DEPLOYMENT", "")
         ),
         azure_openai_embedding_deployment=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", ""),
+        tavily_api_key=os.getenv("TAVILY_API_KEY", ""),
         vector_collection_name=os.getenv("VECTOR_COLLECTION_NAME", "fundamental_report_chunks"),
     )

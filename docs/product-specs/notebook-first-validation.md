@@ -18,7 +18,7 @@ Create the notebooks in this order:
 | 03 | `03_rag_pipeline.ipynb` | Use Azure Document Intelligence to extract markdown, split by markdown header levels, preserve complete tables with nearby text overlap, refine oversized non-table sections, build full-text search vectors, embed chunks, store them, and retrieve context with hybrid search. | `providers.document_intelligence`, `repositories`, `services.rag` |
 | 04 | `04_fundamental_agent.ipynb` | Use RAG context to produce growth, debt, cash-flow, and risk analysis. | `services.agents.fundamental` |
 | 05 | `05_technical_agent.ipynb` | Pull price history, generate RSI/MACD/moving-average charts, send the chart to a multimodal Azure OpenAI deployment, and answer technical-analysis questions from the chart. | `providers.market_data`, `services.charting`, `services.agents.technical` |
-| 06 | `06_news_agent.ipynb` | Pull current news, summarize events, and score sentiment. | `services.agents.news` |
+| 06 | `06_news_agent.ipynb` | Pull current company and sector news through Tavily, summarize favorable/adverse events, identify stock implications, and score sentiment. | `services.agents.news` |
 | 07 | `07_supervisor_agent.ipynb` | Run the first notebook-facing LangChain `create_agent` object over the RAG store and use it to answer annual-report questions before the full supervisor graph is implemented. | `services.agent`, later `runtime.graph`, `services.supervisor` |
 | 08 | `08_end_to_end_validation.ipynb` | Run a complete sample company workflow and capture outputs for backend parity tests. | all reusable surfaces |
 
@@ -41,6 +41,7 @@ Current companion notebook:
 - The first runnable agent notebook must construct the agent through LangChain `create_agent`, expose a retrieval tool backed by the shared hybrid-search module, and keep model/provider setup in reusable Python modules.
 - The end-to-end RAG agent notebook must make vector DB writes explicit in a run-configuration cell, show retrieved context before invoking the model, and display a compact agent/tool trace after the answer.
 - The technical agent notebook must save the generated chart image, display it before model invocation, and keep chart generation separate from the multimodal model call so both stages can be validated independently.
+- The news agent notebook must validate `TAVILY_API_KEY` and Azure OpenAI chat settings, construct the shared `services.agents.news` LangChain agent, search both company/ticker and sector context, and assert that the result includes an answer plus a sentiment score when the model returns valid JSON.
 
 ## Acceptance Criteria
 
