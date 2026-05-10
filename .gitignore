@@ -1,1 +1,36 @@
 .env
+.env.*
+!.env.example
+
+# Python bytecode and test caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments and local tooling
+.venv/
+venv/
+env/
+.python-version
+
+# Jupyter/runtime artifacts
+.ipynb_checkpoints/
+notebooks/.ipynb_checkpoints/
+notebooks/outputs/
+notebooks/quick_test.ipynb
+
+# Local input/output artifacts
+reports/
+artifacts/
+outputs/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
