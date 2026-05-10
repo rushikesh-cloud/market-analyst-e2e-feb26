@@ -28,7 +28,7 @@ The system follows a **Supervisor-Worker** pattern. The Supervisor orchestrates 
 
 1. **Fundamental Agent:**
 * **Input:** Company Name + Uploaded PDF.
-* **Processing:** Uses Azure AI Document Intelligence `prebuilt-layout` markdown extraction -> splits by markdown header levels -> applies size-aware chunk refinement -> stores chunks and embeddings in Postgres/pgvector.
+* **Processing:** Uses Azure AI Document Intelligence `prebuilt-layout` markdown extraction -> splits by markdown header levels -> preserves complete tables as atomic chunks with nearby text context -> applies size-aware chunk refinement to non-table text -> stores chunks and embeddings in Postgres/pgvector.
 * **Tool:** RAG (Hybrid Search) to analyze growth, debt, and cash flow.
 * **Output:** Fundamental Score (0-100) + Rationale.
 

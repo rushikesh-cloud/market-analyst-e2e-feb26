@@ -30,7 +30,7 @@ Status: initial planning reference. This file should be regenerated or updated w
 | metadata | jsonb | Extraction metadata, table references, fiscal year hints, and source details |
 | created_at | timestamptz | Creation timestamp |
 
-Current ingestion metadata must include `source_path`, `source_file`, `company_name`, `ticker`, `filing_type`, `chunk_index`, `page_number`, `chunk_id`, and `heading_path`. Header-derived fields may also include `company`, `document`, `page`, and `section`.
+Current ingestion metadata must include `source_path`, `source_file`, `company_name`, `ticker`, `filing_type`, `chunk_index`, `page_number`, `chunk_id`, and `heading_path`. Header-derived fields may also include `company`, `document`, `page`, and `section`. Table-aware chunks additionally include `contains_table`, `table_index`, `table_format`, `table_char_length`, and `chunk_exceeds_target_size`.
 
 ### analysis_results
 

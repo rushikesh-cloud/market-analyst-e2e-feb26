@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import re
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, NamedTuple
 
 from langchain_core.documents import Document
 from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
@@ -22,6 +22,18 @@ HEADER_SPLITTER = MarkdownHeaderTextSplitter(
     ],
     strip_headers=False,
 )
+
+HTML_TABLE_PATTERN = re.compile(r"<table\b.*?</table>", re.IGNORECASE | re.DOTALL)
+PIPE_TABLE_ROW_PATTERN = re.compile(r"^\s*\|.*\|\s*$")
+PIPE_TABLE_SEPARATOR_PATTERN = re.compile(r"^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$")
+TABLE_CONTEXT_CHARS = 360
+
+
+class _TableBlock(NamedTuple):
+    start: int
+    end: int
+    content: str
+    table_format: str
 
 
 def discover_reports(reports_dir: Path | str = "reports") -> list[ReportInput]:
@@ -62,7 +74,16 @@ def split_markdown_report(
         chunk_overlap=chunk_overlap,
         separators=["\n\n", "\n", ". ", " ", ""],
     )
-    split_documents = splitter.split_documents(header_documents)
+    split_documents = [
+        split_doc
+        for doc in header_documents
+        for split_doc in _split_document_preserving_tables(
+            doc,
+            splitter=splitter,
+            table_context_chars=TABLE_CONTEXT_CHARS,
+            target_chunk_size=chunk_size,
+        )
+    ]
 
     chunks: list[Document] = []
     for index, doc in enumerate(split_documents):
@@ -108,6 +129,121 @@ def _parse_page_number(page_label: object) -> int | None:
         return None
     match = re.search(r"\d+", str(page_label))
     return int(match.group(0)) if match else None
+
+
+def _split_document_preserving_tables(
+    document: Document,
+    splitter: RecursiveCharacterTextSplitter,
+    table_context_chars: int,
+    target_chunk_size: int,
+) -> list[Document]:
+    table_blocks = _find_table_blocks(document.page_content)
+    if not table_blocks:
+        return splitter.split_documents([document])
+
+    split_documents: list[Document] = []
+    cursor = 0
+
+    for table_index, table in enumerate(table_blocks):
+        before_text = document.page_content[cursor : table.start]
+        split_documents.extend(_split_plain_text(before_text, document, splitter))
+
+        after_end = table_blocks[table_index + 1].start if table_index + 1 < len(table_blocks) else len(document.page_content)
+        after_text = document.page_content[table.end : after_end]
+        table_content = "\n\n".join(
+            part
+            for part in (
+                _tail_context(before_text, table_context_chars),
+                table.content.strip(),
+                _head_context(after_text, table_context_chars),
+            )
+            if part
+        )
+        metadata = dict(document.metadata)
+        metadata.update(
+            {
+                "contains_table": True,
+                "table_index": table_index,
+                "table_format": table.table_format,
+                "table_char_length": len(table.content),
+                "chunk_exceeds_target_size": len(table_content) > target_chunk_size,
+            }
+        )
+        split_documents.append(Document(page_content=table_content, metadata=metadata))
+        cursor = table.end
+
+    trailing_text = document.page_content[cursor:]
+    split_documents.extend(_split_plain_text(trailing_text, document, splitter))
+    return [doc for doc in split_documents if doc.page_content.strip()]
+
+
+def _split_plain_text(
+    text: str,
+    source_document: Document,
+    splitter: RecursiveCharacterTextSplitter,
+) -> list[Document]:
+    stripped_text = text.strip()
+    if not stripped_text:
+        return []
+    return splitter.split_documents([Document(page_content=stripped_text, metadata=dict(source_document.metadata))])
+
+
+def _find_table_blocks(markdown: str) -> list[_TableBlock]:
+    blocks = [
+        _TableBlock(match.start(), match.end(), match.group(0), "html")
+        for match in HTML_TABLE_PATTERN.finditer(markdown)
+    ]
+    blocks.extend(_find_pipe_table_blocks(markdown))
+    return _dedupe_table_blocks(blocks)
+
+
+def _find_pipe_table_blocks(markdown: str) -> list[_TableBlock]:
+    blocks: list[_TableBlock] = []
+    line_start = 0
+    lines = markdown.splitlines(keepends=True)
+    line_offsets: list[tuple[int, str]] = []
+    for line in lines:
+        line_offsets.append((line_start, line))
+        line_start += len(line)
+
+    index = 0
+    while index + 1 < len(line_offsets):
+        _, current_line = line_offsets[index]
+        _, next_line = line_offsets[index + 1]
+        if not PIPE_TABLE_ROW_PATTERN.match(current_line) or not PIPE_TABLE_SEPARATOR_PATTERN.match(next_line):
+            index += 1
+            continue
+
+        start = line_offsets[index][0]
+        end_index = index + 2
+        while end_index < len(line_offsets) and PIPE_TABLE_ROW_PATTERN.match(line_offsets[end_index][1]):
+            end_index += 1
+        end = line_offsets[end_index][0] if end_index < len(line_offsets) else len(markdown)
+        blocks.append(_TableBlock(start, end, markdown[start:end], "markdown_pipe"))
+        index = end_index
+
+    return blocks
+
+
+def _dedupe_table_blocks(blocks: list[_TableBlock]) -> list[_TableBlock]:
+    deduped: list[_TableBlock] = []
+    for block in sorted(blocks, key=lambda item: (item.start, item.end)):
+        if deduped and block.start < deduped[-1].end:
+            continue
+        deduped.append(block)
+    return deduped
+
+
+def _tail_context(text: str, max_chars: int) -> str:
+    return _trim_context(text[-max_chars:])
+
+
+def _head_context(text: str, max_chars: int) -> str:
+    return _trim_context(text[:max_chars])
+
+
+def _trim_context(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def _chunk_id(report: ReportInput, index: int, content: str) -> str:

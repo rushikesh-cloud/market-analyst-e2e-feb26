@@ -15,7 +15,7 @@ Create the notebooks in this order:
 | 00 | `00_environment_smoke.ipynb` | Validate environment variables, Azure OpenAI connectivity, database connectivity, and local imports. | `config`, `providers`, `telemetry` |
 | 01 | `01_data_ingestion.ipynb` | Load company inputs, ticker metadata, market data, and run-level configuration into typed objects. | `types`, `services.ingestion` |
 | 02 | `02_document_loading.ipynb` | Load annual reports and PDFs, extract pages/tables/text, and normalize document records. | `providers.document_intelligence`, `services.document_loading` |
-| 03 | `03_rag_pipeline.ipynb` | Use Azure Document Intelligence to extract markdown, split by markdown header levels, refine oversized sections, build full-text search vectors, embed chunks, store them, and retrieve context with hybrid search. | `providers.document_intelligence`, `repositories`, `services.rag` |
+| 03 | `03_rag_pipeline.ipynb` | Use Azure Document Intelligence to extract markdown, split by markdown header levels, preserve complete tables with nearby text overlap, refine oversized non-table sections, build full-text search vectors, embed chunks, store them, and retrieve context with hybrid search. | `providers.document_intelligence`, `repositories`, `services.rag` |
 | 04 | `04_fundamental_agent.ipynb` | Use RAG context to produce growth, debt, cash-flow, and risk analysis. | `services.agents.fundamental` |
 | 05 | `05_technical_agent.ipynb` | Pull price history, generate indicators/charts, and produce technical analysis. | `services.agents.technical` |
 | 06 | `06_news_agent.ipynb` | Pull current news, summarize events, and score sentiment. | `services.agents.news` |
@@ -31,6 +31,7 @@ Create the notebooks in this order:
 - Intermediate data frames, charts, retrieved chunks, and agent traces should be displayed so the workflow can be inspected quickly.
 - Any notebook-only experiment that becomes useful twice should be promoted into a reusable module before backend work begins.
 - The RAG notebook must display markdown previews, header-level chunk samples, full-text search results, vector search results, and the final fused hybrid results separately.
+- The RAG splitter must keep each extracted HTML or markdown table inside a single chunk, adding bounded text context from before and after the table. Table chunks may exceed the nominal chunk target rather than splitting the table.
 
 ## Acceptance Criteria
 
