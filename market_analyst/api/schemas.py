@@ -11,6 +11,17 @@ class ApiModel(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+DocumentLifecycleStatus = Literal["uploaded", "processing", "completed", "failed"]
+DocumentStageName = Literal["stored", "extracting_markdown", "chunking", "embedding", "syncing_reports", "completed", "failed"]
+
+
+class DocumentStageHistoryEntry(ApiModel):
+    stage: DocumentStageName
+    status: Literal["completed", "running", "upcoming", "failed"]
+    started_at: datetime | None = Field(default=None, alias="startedAt")
+    completed_at: datetime | None = Field(default=None, alias="completedAt")
+
+
 class CompanyCreateRequest(ApiModel):
     name: str
     ticker: str
@@ -50,8 +61,8 @@ class DocumentResponse(ApiModel):
     content_type: str | None = Field(default=None, alias="contentType")
     file_size: int = Field(alias="fileSize")
     source_path: str = Field(alias="sourcePath")
-    status: Literal["uploaded", "processing", "completed", "failed"]
-    stage: Literal["stored", "extracting_markdown", "chunking", "embedding", "syncing_reports", "completed", "failed"]
+    status: DocumentLifecycleStatus
+    stage: DocumentStageName
     page_count: int | None = Field(default=None, alias="pageCount")
     pages_processed: int | None = Field(default=None, alias="pagesProcessed")
     chunk_count: int | None = Field(default=None, alias="chunkCount")
@@ -59,6 +70,7 @@ class DocumentResponse(ApiModel):
     reports_rows: int | None = Field(default=None, alias="reportsRows")
     error_message: str | None = Field(default=None, alias="errorMessage")
     metadata: dict[str, Any] = Field(default_factory=dict)
+    stage_history: list[DocumentStageHistoryEntry] = Field(default_factory=list, alias="stageHistory")
     uploaded_at: datetime = Field(alias="uploadedAt")
     updated_at: datetime = Field(alias="updatedAt")
 

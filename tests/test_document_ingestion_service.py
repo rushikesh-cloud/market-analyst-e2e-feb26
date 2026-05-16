@@ -41,6 +41,7 @@ def test_document_ingestion_persists_stage_transitions(monkeypatch, tmp_path) ->
             "id": document_id,
             "company_id": "company-1",
             "source_path": str(source_path),
+            "document_name": "annual-report.pdf",
         },
     )
     monkeypatch.setattr(
@@ -97,3 +98,32 @@ def test_document_ingestion_persists_stage_transitions(monkeypatch, tmp_path) ->
     assert transitions[2]["chunk_count"] == 2
     assert transitions[3]["vector_ids_count"] == 2
     assert transitions[4]["reports_rows"] == 2
+
+
+def test_document_ingestion_stage_history_advances_cleanly() -> None:
+    from market_analyst.repositories.documents import _advance_stage_history
+
+    history = [
+        {
+            "stage": "stored",
+            "status": "completed",
+            "started_at": "2026-05-16T12:00:00+00:00",
+            "completed_at": "2026-05-16T12:00:00+00:00",
+        }
+    ]
+
+    history = _advance_stage_history(history, stage="extracting_markdown", lifecycle_status="processing")
+    history = _advance_stage_history(history, stage="chunking", lifecycle_status="processing")
+    history = _advance_stage_history(history, stage="embedding", lifecycle_status="processing")
+    history = _advance_stage_history(history, stage="syncing_reports", lifecycle_status="processing")
+    history = _advance_stage_history(history, stage="completed", lifecycle_status="completed")
+
+    by_stage = {entry["stage"]: entry for entry in history}
+
+    assert by_stage["stored"]["status"] == "completed"
+    assert by_stage["extracting_markdown"]["status"] == "completed"
+    assert by_stage["chunking"]["status"] == "completed"
+    assert by_stage["embedding"]["status"] == "completed"
+    assert by_stage["syncing_reports"]["status"] == "completed"
+    assert by_stage["completed"]["status"] == "completed"
+    assert by_stage["completed"]["completed_at"] is not None

@@ -38,6 +38,7 @@ Status: initial planning reference. This file should be regenerated or updated w
 | reports_rows | integer | Number of project-level `reports` rows synced |
 | error_message | text | Failure detail for failed ingestion jobs |
 | metadata | jsonb | Upload metadata such as original filename |
+| stage_history | jsonb | Ordered ingestion-stage timeline entries with per-stage status plus `started_at` / `completed_at` timestamps |
 | created_at | timestamptz | Upload creation timestamp |
 | updated_at | timestamptz | Last status update timestamp |
 

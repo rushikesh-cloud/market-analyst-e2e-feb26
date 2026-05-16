@@ -85,8 +85,16 @@ export type UploadedDocument = {
   vectorIdsCount?: number | null;
   reportsRows?: number | null;
   errorMessage?: string | null;
+  stageHistory?: DocumentStageHistoryEntry[];
   uploadedAt: string;
   updatedAt?: string;
+};
+
+export type DocumentStageHistoryEntry = {
+  stage: "stored" | "extracting_markdown" | "chunking" | "embedding" | "syncing_reports" | "completed" | "failed";
+  status: "completed" | "running" | "upcoming" | "failed";
+  startedAt?: string | null;
+  completedAt?: string | null;
 };
 
 export type TimelineStep = {

@@ -70,6 +70,14 @@ def _document_row(source_path: str) -> dict[str, object]:
         "reports_rows": None,
         "error_message": None,
         "metadata": {},
+        "stage_history": [
+            {
+                "stage": "stored",
+                "status": "completed",
+                "started_at": NOW.isoformat(),
+                "completed_at": NOW.isoformat(),
+            }
+        ],
         "uploaded_at": NOW,
         "updated_at": NOW,
     }
@@ -185,6 +193,8 @@ def test_document_upload_returns_accepted_status(monkeypatch, tmp_path) -> None:
     assert body["companyId"] == "0d001055-2737-4c3b-adff-25d1cda5c831"
     assert body["status"] == "uploaded"
     assert body["stage"] == "stored"
+    assert body["stageHistory"][0]["stage"] == "stored"
+    assert body["stageHistory"][0]["status"] == "completed"
     assert (settings.upload_dir / "company-1").exists()
 
 

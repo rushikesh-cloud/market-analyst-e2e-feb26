@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 from uuid import uuid4
@@ -30,9 +31,13 @@ DOCUMENT_COLUMNS = """
     documents.reports_rows,
     documents.error_message,
     documents.metadata,
+    documents.stage_history,
     documents.created_at AS uploaded_at,
     documents.updated_at
 """
+
+ACTIVE_DOCUMENT_STAGES = ("stored", "extracting_markdown", "chunking", "embedding", "syncing_reports")
+DOCUMENT_STAGE_SEQUENCE = (*ACTIVE_DOCUMENT_STAGES, "completed")
 
 
 def list_documents(settings: Settings, company_id: str | None = None) -> list[dict[str, object]]:
@@ -87,6 +92,15 @@ def create_document(
 ) -> dict[str, object]:
     ensure_project_schema(settings)
     document_id = str(uuid4())
+    now = _utc_now()
+    stage_history = [
+        {
+            "stage": "stored",
+            "status": "completed",
+            "started_at": _isoformat(now),
+            "completed_at": _isoformat(now),
+        }
+    ]
     with psycopg.connect(settings.psycopg_dsn, row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -101,9 +115,10 @@ def create_document(
                     source_path,
                     status,
                     stage,
-                    metadata
+                    metadata,
+                    stage_history
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, 'uploaded', 'stored', %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'uploaded', 'stored', %s, %s)
                 RETURNING id
                 """,
                 (
@@ -115,6 +130,7 @@ def create_document(
                     file_size,
                     source_path,
                     Jsonb(metadata or {}),
+                    Jsonb(stage_history),
                 ),
             )
         conn.commit()
@@ -138,8 +154,13 @@ def update_document_status(
     error_message: str | None = None,
 ) -> dict[str, object]:
     ensure_project_schema(settings)
-    with psycopg.connect(settings.psycopg_dsn) as conn:
+    with psycopg.connect(settings.psycopg_dsn, row_factory=dict_row) as conn:
         with conn.cursor() as cur:
+            cur.execute("SELECT stage_history FROM documents WHERE id = %s", (document_id,))
+            row = cur.fetchone()
+            if row is None:
+                raise RuntimeError(f"Document not found before update: {document_id}")
+            stage_history = _advance_stage_history(row.get("stage_history"), stage=stage, lifecycle_status=status)
             cur.execute(
                 """
                 UPDATE documents
@@ -152,6 +173,7 @@ def update_document_status(
                     vector_ids_count = COALESCE(%s, vector_ids_count),
                     reports_rows = COALESCE(%s, reports_rows),
                     error_message = %s,
+                    stage_history = %s,
                     updated_at = now()
                 WHERE id = %s
                 """,
@@ -164,6 +186,7 @@ def update_document_status(
                     vector_ids_count,
                     reports_rows,
                     error_message,
+                    Jsonb(stage_history),
                     document_id,
                 ),
             )
@@ -179,4 +202,111 @@ def _serialize_document_row(row: dict[str, Any]) -> dict[str, object]:
     for key in ("id", "company_id"):
         if isinstance(serialized.get(key), UUID):
             serialized[key] = str(serialized[key])
+    serialized["stage_history"] = _normalize_stage_history(serialized.get("stage_history"))
     return serialized
+
+
+def _advance_stage_history(
+    current_history: Any,
+    *,
+    stage: str,
+    lifecycle_status: str,
+    now: datetime | None = None,
+) -> list[dict[str, str | None]]:
+    timestamp = now or _utc_now()
+    next_history = _normalize_stage_history(current_history)
+    timestamp_value = _isoformat(timestamp)
+
+    for entry in next_history:
+        if entry["status"] == "running" and entry["completed_at"] is None:
+            entry["status"] = "completed" if lifecycle_status != "failed" else entry["status"]
+            if lifecycle_status != "failed":
+                entry["completed_at"] = timestamp_value
+
+    stage_entry = next((entry for entry in next_history if entry["stage"] == stage), None)
+    if stage_entry is None:
+        stage_entry = {
+            "stage": stage,
+            "status": "running",
+            "started_at": timestamp_value,
+            "completed_at": None,
+        }
+        next_history.append(stage_entry)
+    elif stage_entry["started_at"] is None:
+        stage_entry["started_at"] = timestamp_value
+
+    if lifecycle_status == "processing":
+        stage_entry["status"] = "running"
+        stage_entry["completed_at"] = None
+    elif lifecycle_status == "completed":
+        stage_entry["status"] = "completed"
+        stage_entry["completed_at"] = stage_entry["completed_at"] or timestamp_value
+    elif lifecycle_status == "failed":
+        stage_entry["status"] = "failed"
+        stage_entry["completed_at"] = timestamp_value
+    else:
+        stage_entry["status"] = "completed"
+        stage_entry["completed_at"] = stage_entry["completed_at"] or timestamp_value
+
+    return _normalize_stage_history(next_history)
+
+
+def _normalize_stage_history(value: Any) -> list[dict[str, str | None]]:
+    current_entries = value if isinstance(value, list) else []
+    history_by_stage: dict[str, dict[str, str | None]] = {}
+    for raw_entry in current_entries:
+        if not isinstance(raw_entry, dict):
+            continue
+        stage = str(raw_entry.get("stage") or "").strip()
+        if not stage:
+            continue
+        history_by_stage[stage] = {
+            "stage": stage,
+            "status": _normalize_stage_status(raw_entry.get("status")),
+            "started_at": _coerce_iso_timestamp(raw_entry.get("started_at")),
+            "completed_at": _coerce_iso_timestamp(raw_entry.get("completed_at")),
+        }
+
+    ordered: list[dict[str, str | None]] = []
+    for stage_name in DOCUMENT_STAGE_SEQUENCE:
+        entry = history_by_stage.pop(stage_name, None)
+        if entry:
+            ordered.append(entry)
+        elif stage_name != "completed":
+            ordered.append(
+                {
+                    "stage": stage_name,
+                    "status": "upcoming",
+                    "started_at": None,
+                    "completed_at": None,
+                }
+            )
+
+    if "failed" in history_by_stage:
+        ordered.append(history_by_stage.pop("failed"))
+    ordered.extend(history_by_stage.values())
+    return ordered
+
+
+def _normalize_stage_status(value: Any) -> str:
+    status = str(value or "").strip().lower()
+    if status in {"completed", "running", "upcoming", "failed"}:
+        return status
+    return "upcoming"
+
+
+def _coerce_iso_timestamp(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return _isoformat(value)
+    text = str(value).strip()
+    return text or None
+
+
+def _utc_now() -> datetime:
+    return datetime.now(tz=UTC)
+
+
+def _isoformat(value: datetime) -> str:
+    return value.astimezone(UTC).isoformat()

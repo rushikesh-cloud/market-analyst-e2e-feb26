@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { FileText, FileUp, Plus, Send, X } from "lucide-react";
+import { CheckCircle2, CircleDotDashed, Clock3, FileText, FileUp, Plus, Send, XCircle, X } from "lucide-react";
 import { listCompanies, listDocuments, uploadDocument } from "@/lib/api";
-import type { Company, UploadedDocument } from "@/lib/types";
+import type { Company, DocumentStageHistoryEntry, UploadedDocument } from "@/lib/types";
+
+const DOCUMENT_STAGE_ORDER = ["stored", "extracting_markdown", "chunking", "embedding", "syncing_reports", "completed"] as const;
 
 function formatBytes(bytes: number) {
   if (bytes < 1_000_000) return `${Math.max(1, Math.round(bytes / 1_000))} KB`;
@@ -19,6 +21,7 @@ export function DocumentLibrary() {
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -29,6 +32,7 @@ export function DocumentLibrary() {
         setCompanies(companyItems);
         setCompanyId((current) => current || companyItems[0]?.id || "");
         setDocuments(documentItems);
+        setSelectedDocumentId((current) => (current && documentItems.some((document) => document.id === current) ? current : null));
       })
       .catch((apiError: unknown) => {
         if (isMounted) setError(apiError instanceof Error ? apiError.message : "Unable to load documents");
@@ -45,7 +49,10 @@ export function DocumentLibrary() {
     if (!documents.some((document) => document.status === "processing" || document.status === "uploaded")) return;
     const intervalId = window.setInterval(() => {
       listDocuments()
-        .then(setDocuments)
+        .then((documentItems) => {
+          setDocuments(documentItems);
+          setSelectedDocumentId((current) => (current && documentItems.some((document) => document.id === current) ? current : null));
+        })
         .catch((apiError: unknown) => setError(apiError instanceof Error ? apiError.message : "Unable to refresh document status"));
     }, 3000);
     return () => window.clearInterval(intervalId);
@@ -158,31 +165,86 @@ export function DocumentLibrary() {
                 </tr>
               ) : null}
               {documents.map((document) => (
-                <tr key={document.id} className="transition hover:bg-slate-50">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-white text-muted">
-                        <FileText size={15} />
+                <Fragment key={document.id}>
+                  <tr
+                    className="cursor-pointer transition hover:bg-slate-50"
+                    onClick={() => setSelectedDocumentId((current) => (current === document.id ? null : document.id))}
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-white text-muted">
+                          <FileText size={15} />
+                        </span>
+                        <span className="max-w-[320px] truncate text-sm font-semibold">{document.fileName}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-ink">{document.companyName}</td>
+                    <td className="px-4 py-3 text-sm text-muted">{formatBytes(document.fileSize)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-md border px-2 py-1 text-xs font-medium ${statusClassName(document.status)}`}>
+                        {document.status}
                       </span>
-                      <span className="max-w-[320px] truncate text-sm font-semibold">{document.fileName}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-ink">{document.companyName}</td>
-                  <td className="px-4 py-3 text-sm text-muted">{formatBytes(document.fileSize)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`rounded-md border px-2 py-1 text-xs font-medium ${statusClassName(document.status)}`}>
-                      {document.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted">
-                    <div>{formatStage(document.stage)}</div>
-                    <div>
-                      {document.pageCount ? `${document.pagesProcessed ?? document.pageCount}/${document.pageCount} pages` : "Pages pending"}
-                      {document.chunkCount ? `, ${document.chunkCount} chunks` : ""}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted">{formatDate(document.uploadedAt)}</td>
-                </tr>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted">
+                      <div>{formatStage(document.stage)}</div>
+                      <div>
+                        {document.pageCount ? `${document.pagesProcessed ?? document.pageCount}/${document.pageCount} pages` : "Pages pending"}
+                        {document.chunkCount ? `, ${document.chunkCount} chunks` : ""}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted">{formatDate(document.uploadedAt)}</td>
+                  </tr>
+                  {selectedDocumentId === document.id ? (
+                    <tr className="bg-slate-50/70">
+                      <td className="px-4 pb-4" colSpan={6}>
+                        <div className="mt-1 rounded-xl border border-line bg-white p-3 shadow-soft">
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-ink">Ingestion timeline</p>
+                              <p className="text-xs text-muted">Each stage shows its live state and the time it started or completed.</p>
+                            </div>
+                            <span className={`rounded-md border px-2 py-1 text-xs font-medium ${statusClassName(document.status)}`}>
+                              {formatStage(document.stage)}
+                            </span>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full min-w-[640px] border-collapse text-left">
+                              <thead className="border-b border-line bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+                                <tr>
+                                  <th className="px-3 py-2">Stage</th>
+                                  <th className="px-3 py-2">State</th>
+                                  <th className="px-3 py-2">Started</th>
+                                  <th className="px-3 py-2">Completed</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-line">
+                                {buildStageRows(document).map((entry) => (
+                                  <tr key={`${document.id}-${entry.stage}`}>
+                                    <td className="px-3 py-2 text-sm font-medium text-ink">
+                                      <div className="flex items-center gap-2">
+                                        <span className={`flex h-6 w-6 items-center justify-center rounded-full border ${stageIconClassName(entry.status)}`}>
+                                          {stageIcon(entry.status)}
+                                        </span>
+                                        {formatStage(entry.stage)}
+                                      </div>
+                                    </td>
+                                    <td className="px-3 py-2">
+                                      <span className={`rounded-md border px-2 py-1 text-xs font-medium ${stageStatusClassName(entry.status)}`}>
+                                        {entry.status}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2 text-xs text-muted">{formatDate(entry.startedAt ?? "")}</td>
+                                    <td className="px-3 py-2 text-xs text-muted">{formatDate(entry.completedAt ?? "")}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
               ))}
               {!isLoading && documents.length === 0 ? (
                 <tr>
@@ -200,6 +262,7 @@ export function DocumentLibrary() {
 }
 
 function formatDate(value: string) {
+  if (!value) return "--";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString();
@@ -215,4 +278,42 @@ function statusClassName(status: UploadedDocument["status"]) {
   if (status === "failed") return "border-red-200 bg-red-50 text-red-700";
   if (status === "processing") return "border-blue-200 bg-blue-50 text-blue-700";
   return "border-slate-200 bg-slate-50 text-slate-700";
+}
+
+function stageStatusClassName(status: DocumentStageHistoryEntry["status"]) {
+  if (status === "completed") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (status === "running") return "border-blue-200 bg-blue-50 text-blue-700";
+  if (status === "failed") return "border-red-200 bg-red-50 text-red-700";
+  return "border-amber-200 bg-amber-50 text-amber-700";
+}
+
+function stageIconClassName(status: DocumentStageHistoryEntry["status"]) {
+  if (status === "completed") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (status === "running") return "border-blue-200 bg-blue-50 text-blue-700";
+  if (status === "failed") return "border-red-200 bg-red-50 text-red-700";
+  return "border-amber-200 bg-amber-50 text-amber-700";
+}
+
+function stageIcon(status: DocumentStageHistoryEntry["status"]) {
+  if (status === "completed") return <CheckCircle2 size={14} />;
+  if (status === "running") return <CircleDotDashed size={14} />;
+  if (status === "failed") return <XCircle size={14} />;
+  return <Clock3 size={14} />;
+}
+
+function buildStageRows(document: UploadedDocument): DocumentStageHistoryEntry[] {
+  const historyByStage = new Map((document.stageHistory ?? []).map((entry) => [entry.stage, entry]));
+  return DOCUMENT_STAGE_ORDER.map((stage) => {
+    const existing = historyByStage.get(stage);
+    if (existing) return existing;
+    const fallback: DocumentStageHistoryEntry = {
+      stage,
+      status: "upcoming",
+      startedAt: null,
+      completedAt: null,
+    };
+    return fallback;
+  }).concat(
+    document.stageHistory?.filter((entry) => entry.stage === "failed") ?? [],
+  );
 }

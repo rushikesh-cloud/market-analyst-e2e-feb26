@@ -118,11 +118,13 @@ def _create_project_schema(conn: psycopg.Connection) -> None:
                 reports_rows integer,
                 error_message text,
                 metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+                stage_history jsonb NOT NULL DEFAULT '[]'::jsonb,
                 created_at timestamptz NOT NULL DEFAULT now(),
                 updated_at timestamptz NOT NULL DEFAULT now()
             )
             """
         )
+        cur.execute("ALTER TABLE documents ADD COLUMN IF NOT EXISTS stage_history jsonb NOT NULL DEFAULT '[]'::jsonb")
         cur.execute(
             """
             CREATE TABLE IF NOT EXISTS reports (
@@ -202,6 +204,7 @@ def _project_schema_ready(conn: psycopg.Connection) -> bool:
             "reports_rows",
             "error_message",
             "metadata",
+            "stage_history",
             "created_at",
             "updated_at",
         },
