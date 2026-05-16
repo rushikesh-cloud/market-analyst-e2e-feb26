@@ -21,6 +21,32 @@ export type NewWorkflowDraft = {
   sector?: string;
 };
 
+export type Company = {
+  id: string;
+  name: string;
+  ticker: string;
+  yahooFinanceTicker: string;
+  sector: string;
+  createdAt: string;
+};
+
+export type CompanyDraft = {
+  name: string;
+  ticker: string;
+  yahooFinanceTicker: string;
+  sector: string;
+};
+
+export type UploadedDocument = {
+  id: string;
+  companyId: string;
+  companyName: string;
+  fileName: string;
+  fileSize: number;
+  status: "uploaded" | "submitted";
+  uploadedAt: string;
+};
+
 export type TimelineStep = {
   id: string;
   label: string;

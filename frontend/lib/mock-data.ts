@@ -1,5 +1,5 @@
 import { BarChart3, FileSearch, Newspaper, Route, Sparkles } from "lucide-react";
-import type { AgentKey, AgentOutput, ChatMessage, TimelineStep, WorkflowRun } from "./types";
+import type { AgentKey, AgentOutput, ChatMessage, Company, TimelineStep, UploadedDocument, WorkflowRun } from "./types";
 
 export const mockWorkflows: WorkflowRun[] = [
   {
@@ -31,6 +31,54 @@ export const mockWorkflows: WorkflowRun[] = [
     finalRating: 68,
     updatedAt: "Yesterday",
     agentStatus: { fundamental: "completed", technical: "completed", news: "completed" },
+  },
+];
+
+export const mockCompanies: Company[] = [
+  {
+    id: "company-reliance",
+    name: "Reliance Industries",
+    ticker: "RELIANCE",
+    yahooFinanceTicker: "RELIANCE.NS",
+    sector: "Energy",
+    createdAt: "Today, 10:12",
+  },
+  {
+    id: "company-hdfc",
+    name: "HDFC Bank",
+    ticker: "HDFCBANK",
+    yahooFinanceTicker: "HDFCBANK.NS",
+    sector: "Banking",
+    createdAt: "Today, 09:06",
+  },
+  {
+    id: "company-infosys",
+    name: "Infosys",
+    ticker: "INFY",
+    yahooFinanceTicker: "INFY.NS",
+    sector: "IT Services",
+    createdAt: "Yesterday",
+  },
+];
+
+export const mockUploadedDocuments: UploadedDocument[] = [
+  {
+    id: "doc-reliance-annual-report",
+    companyId: "company-reliance",
+    companyName: "Reliance Industries",
+    fileName: "reliance-annual-report-2025.pdf",
+    fileSize: 4_780_000,
+    status: "submitted",
+    uploadedAt: "Today, 10:18",
+  },
+  {
+    id: "doc-infosys-investor-presentation",
+    companyId: "company-infosys",
+    companyName: "Infosys",
+    fileName: "infosys-investor-presentation.pdf",
+    fileSize: 2_140_000,
+    status: "uploaded",
+    uploadedAt: "Yesterday",
   },
 ];
 

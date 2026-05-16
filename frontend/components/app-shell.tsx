@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Bot, History, Plus, Settings } from "lucide-react";
+import { BarChart3, Bot, Building2, FileText, History, Plus, Settings } from "lucide-react";
 import type { ReactNode } from "react";
 
 const navItems = [
   { label: "Workflows", href: "/", icon: History },
+  { label: "Companies", href: "/companies", icon: Building2 },
+  { label: "Documents", href: "/documents", icon: FileText },
   { label: "New", href: "/?new=1", icon: Plus },
   { label: "Agents", href: "/#agents", icon: Bot },
   { label: "Settings", href: "/#settings", icon: Settings },
@@ -24,7 +26,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <nav className="mt-8 flex flex-1 flex-col gap-2">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const active = item.href === "/" ? pathname === "/" : false;
+            const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             return (
               <Link
                 key={item.label}

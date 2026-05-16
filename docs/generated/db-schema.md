@@ -10,7 +10,9 @@ Status: initial planning reference. This file should be regenerated or updated w
 | --- | --- | --- |
 | id | uuid | Primary key |
 | ticker | text | Unique market ticker |
+| yahoo_finance_ticker | text | Provider-specific ticker for `yfinance`, including exchange suffixes such as `.NS` when needed |
 | name | text | Company display name |
+| sector | text | Sector classification used by news context and frontend filtering |
 | overall_score | numeric | Latest supervisor future-perspective rating from 1 to 100 |
 | status | text | Processing state such as `pending`, `processing`, `completed`, or `failed` |
 | created_at | timestamptz | Creation timestamp |
@@ -22,7 +24,9 @@ Status: initial planning reference. This file should be regenerated or updated w
 | --- | --- | --- |
 | id | uuid | Primary key |
 | company_id | uuid | Foreign key to `companies.id` |
+| document_name | text | Uploaded source document filename or display name |
 | source_path | text | Local path or blob URI for the report |
+| upload_status | text | Upload lifecycle state such as `uploaded`, `submitted`, `processing`, `completed`, or `failed` |
 | content | text | Extracted chunk text |
 | search_vector | tsvector | Generated full-text search vector derived from `content` and selected metadata |
 | embedding | vector | Reserved for future project-owned semantic retrieval; current ingestion leaves this nullable and stores semantic vectors in LangChain PGVector |
