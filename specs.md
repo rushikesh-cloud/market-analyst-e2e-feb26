@@ -106,9 +106,12 @@ Notebook-specific requirements and acceptance criteria are defined in `docs/prod
 
 ### 5.2. Frontend (React)
 
-* **Dashboard:** High-level view of all companies analyzed.
-* **Polling Logic:** A `useInterval` hook (5s) checks the `/status/{ticker}` endpoint.
-* **Chat Pod:** A dedicated chat window for each company. The frontend sends the user query to the Supervisor Agent, which has the context of the entire graph's output and the Postgres DB.
+* **Workflow Page:** A one-user SaaS workspace lists every stock-analysis workflow with company name, ticker, run status, final supervisor rating, last updated time, and compact status indicators for the fundamental, technical, and news agents.
+* **New Workflow Flow:** A minimal stock form captures company name, ticker, optional sector, and a report/PDF placeholder. Submitting the form starts a supervisor workflow and routes the user into the run detail view.
+* **Run Detail Page:** The run detail view exposes the supervisor timeline, fixed initial prompt stage, fundamental agent stream, technical chart/analysis stream, news analysis stream, and final supervisor outcome.
+* **Streaming Adapter:** The first frontend scaffold uses mock streaming events with the same conceptual shape expected from the future backend: run started, agent started, agent chunk, chart ready, agent completed, supervisor started, supervisor chunk, supervisor completed, and error.
+* **Chat Pod:** A dedicated chat window is scoped to one completed stock run. Follow-up questions are answered by the supervisor against the existing worker outputs and stored workflow context.
+* **Integration Path:** The mock stream adapter will later be replaced by FastAPI streaming transport without rewriting the visual workflow, timeline, agent panels, supervisor panel, or chat pod.
 
 ---
 
@@ -120,4 +123,4 @@ Notebook-specific requirements and acceptance criteria are defined in `docs/prod
 4. **Phase 3:** News Crawler & Sentiment Integration via Tavily and LangChain `create_agent`.
 5. **Phase 4:** LangGraph Supervisor logic and Scoring weights.
 6. **Phase 5:** FastAPI backend integration using the notebook-validated reusable modules.
-7. **Phase 6:** React UI & Real-time Polling Integration.
+7. **Phase 6:** React UI & streaming workflow integration. The first scaffold is a clickable Next.js/Tailwind/Lucide frontend with mock streaming data; backend integration follows after API contracts are finalized.

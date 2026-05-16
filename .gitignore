@@ -28,6 +28,12 @@ reports/
 artifacts/
 outputs/
 
+# Frontend build artifacts
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/dev-server.log
+
 # OS/editor noise
 .DS_Store
 Thumbs.db
