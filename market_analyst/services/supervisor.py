@@ -30,11 +30,14 @@ def run_supervisor_agent(
 ) -> SupervisorAnalysisResult:
     """Run all worker agents and aggregate their 1-100 ratings."""
 
+    fundamental_ticker = request.ticker
+    technical_ticker = request.yahoo_finance_ticker or request.ticker
+
     fundamental = run_fundamental_analysis_agent(
         settings,
         FundamentalAnalysisRequest(
             company_name=request.company_name,
-            ticker=request.ticker,
+            ticker=fundamental_ticker,
             document_id=request.document_id,
             question=request.fundamental_question,
         ),
@@ -42,7 +45,7 @@ def run_supervisor_agent(
     technical = run_technical_analysis_agent(
         settings,
         TechnicalAnalysisRequest(
-            ticker=request.ticker,
+            ticker=technical_ticker,
             question=request.technical_question,
         ),
     )
@@ -50,14 +53,14 @@ def run_supervisor_agent(
         settings,
         NewsAnalysisRequest(
             company_name=request.company_name,
-            ticker=request.ticker,
+            ticker=technical_ticker,
             sector=request.sector,
             question=request.news_question,
         ),
     )
     return aggregate_supervisor_result(
         company_name=request.company_name,
-        ticker=request.ticker,
+        ticker=technical_ticker,
         fundamental=fundamental,
         technical=technical,
         news=news,

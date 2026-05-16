@@ -1,4 +1,5 @@
 from market_analyst.services import supervisor as supervisor_service
+from market_analyst.services import supervisor_runs as supervisor_runs_service
 from market_analyst.services.supervisor import aggregate_supervisor_result, calculate_weighted_rating, run_supervisor_agent
 from market_analyst.types.fundamental import FundamentalAnalysisResult
 from market_analyst.types.news import NewsAnalysisResult
@@ -33,7 +34,7 @@ def test_aggregate_supervisor_result_uses_worker_ratings() -> None:
     assert [component.name for component in result.components] == ["fundamental", "technical", "news"]
 
 
-def test_supervisor_keeps_provider_ticker_for_technical_agent(monkeypatch) -> None:
+def test_supervisor_routes_internal_and_provider_tickers_to_the_right_workers(monkeypatch) -> None:
     captured: dict[str, str | None] = {}
 
     def fake_fundamental(settings, request):
@@ -52,9 +53,78 @@ def test_supervisor_keeps_provider_ticker_for_technical_agent(monkeypatch) -> No
     monkeypatch.setattr(supervisor_service, "run_technical_analysis_agent", fake_technical)
     monkeypatch.setattr(supervisor_service, "run_news_analysis_agent", fake_news)
 
-    result = run_supervisor_agent(None, SupervisorAnalysisRequest(company_name="Reliance", ticker="RELIANCE.NS"))  # type: ignore[arg-type]
+    result = run_supervisor_agent(
+        None,  # type: ignore[arg-type]
+        SupervisorAnalysisRequest(
+            company_name="Reliance",
+            ticker="RELIANCE",
+            yahoo_finance_ticker="RELIANCE.NS",
+        ),
+    )
 
     assert result.final_rating == 72
-    assert captured["fundamental_ticker"] == "RELIANCE.NS"
+    assert captured["fundamental_ticker"] == "RELIANCE"
     assert captured["technical_ticker"] == "RELIANCE.NS"
     assert captured["news_ticker"] == "RELIANCE.NS"
+
+
+def test_execute_supervisor_run_uses_internal_ticker_for_fundamental_and_provider_ticker_for_technical(monkeypatch) -> None:
+    captured: dict[str, str | None] = {}
+    transitions: list[dict[str, object]] = []
+
+    monkeypatch.setattr(
+        supervisor_runs_service,
+        "get_supervisor_run",
+        lambda settings, run_id: {"id": run_id, "company_id": "company-1", "document_id": "document-1"},
+    )
+    monkeypatch.setattr(
+        supervisor_runs_service,
+        "get_company",
+        lambda settings, company_id: {
+            "id": company_id,
+            "name": "Reliance",
+            "ticker": "RELIANCE",
+            "yahoo_finance_ticker": "RELIANCE.NS",
+            "sector": "Energy",
+        },
+    )
+    monkeypatch.setattr(
+        supervisor_runs_service,
+        "get_document",
+        lambda settings, document_id: {"id": document_id},
+    )
+
+    def fake_update(settings, run_id, **kwargs):
+        transitions.append(kwargs)
+        return {"id": run_id, **kwargs}
+
+    def fake_fundamental(settings, request):
+        captured["fundamental_ticker"] = request.ticker
+        captured["fundamental_document_id"] = request.document_id
+        return FundamentalAnalysisResult("Reliance", "RELIANCE", "q", "fundamental answer", 80)
+
+    def fake_technical(settings, request):
+        captured["technical_ticker"] = request.ticker
+        return TechnicalAnalysisResult(request.ticker, "q", "technical answer", 70, chart_path=None, artifact=None)  # type: ignore[arg-type]
+
+    def fake_news(settings, request):
+        captured["news_ticker"] = request.ticker
+        return NewsAnalysisResult("Reliance", request.ticker, "Energy", "q", "news answer", rating=60, sentiment_score=60)
+
+    monkeypatch.setattr(supervisor_runs_service, "update_supervisor_run", fake_update)
+    monkeypatch.setattr(supervisor_runs_service, "run_fundamental_analysis_agent", fake_fundamental)
+    monkeypatch.setattr(supervisor_runs_service, "run_technical_analysis_agent", fake_technical)
+    monkeypatch.setattr(supervisor_runs_service, "run_news_analysis_agent", fake_news)
+    monkeypatch.setattr(
+        supervisor_runs_service,
+        "aggregate_supervisor_result",
+        lambda **kwargs: supervisor_service.aggregate_supervisor_result(**kwargs),
+    )
+
+    supervisor_runs_service.execute_supervisor_run(None, "run-1")  # type: ignore[arg-type]
+
+    assert captured["fundamental_ticker"] == "RELIANCE"
+    assert captured["fundamental_document_id"] == "document-1"
+    assert captured["technical_ticker"] == "RELIANCE.NS"
+    assert captured["news_ticker"] == "RELIANCE.NS"
+    assert transitions[-1]["status"] == "completed"

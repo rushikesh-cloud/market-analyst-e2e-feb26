@@ -27,14 +27,14 @@ A full-stack, multi-agent system designed to provide 360-degree market intellige
 The system follows a **Supervisor-Worker** pattern. The Supervisor orchestrates three specialized workers:
 
 1. **Fundamental Agent:**
-* **Input:** Company Name + Uploaded PDF. If a market-data ticker includes an exchange suffix such as `.NS`, the fundamental RAG comparison strips the suffix and uses the base ticker for report matching.
+* **Input:** Company Name + Uploaded PDF + the company's normal/internal ticker for report matching. If a market-data ticker includes an exchange suffix such as `.NS`, the fundamental RAG comparison strips the suffix and uses the base ticker for report matching.
 * **Processing:** Uses Azure AI Document Intelligence `prebuilt-layout` markdown extraction -> splits by markdown header levels -> preserves complete tables as atomic chunks with nearby text context -> applies size-aware chunk refinement to non-table text -> stores chunks and embeddings in Postgres/pgvector.
 * **Tool:** RAG (Hybrid Search) to analyze growth, debt, and cash flow.
 * **Output:** Fundamental Rating (1-100, where 100 is most positive) + Rationale.
 
 
 2. **Technical Agent:**
-* **Input:** Ticker Symbol. The technical agent preserves the ticker exactly as supplied so provider-specific symbols such as Indian `ticker.NS` values continue to work with `yfinance`.
+* **Input:** Yahoo Finance ticker symbol. The technical agent preserves the ticker exactly as supplied so provider-specific symbols such as Indian `ticker.NS` values continue to work with `yfinance`.
 * **Processing:** Pulls data from `yfinance` -> Generates technical charts with moving averages, RSI, and MACD -> Saves the chart as an image artifact.
 * **Tool:** Multi-modal Azure OpenAI chat model to inspect the chart image and identify trend, momentum, support/resistance, breakout/breakdown risk, and a technical rating.
 * **Output:** Technical Rating (1-100, where 100 is most positive) + Trend Analysis.
@@ -122,7 +122,7 @@ Notebook-specific requirements and acceptance criteria are defined in `docs/prod
 * **Technical V2 Evaluation Surface:** The dynamic technical-agent V2 stays as a separate service/notebook path until it reaches parity and is explicitly promoted to replace V1.
 * **FastAPI Company API:** The first backend integration slice exposes company creation, listing, and editing through FastAPI. Company creation captures company name, internal ticker, Yahoo Finance ticker, and sector, then persists the normalized company row in PostgreSQL. The edit path allows operators to update every mutable company-master field stored in the row: company name, internal ticker, Yahoo Finance ticker, sector, status, and overall score.
 * **FastAPI Document Injection API:** Document upload is asynchronous. The upload request stores the file under local `uploads/documents/`, creates a document row, and schedules ingestion in the background. Each ingestion stage is synced back to PostgreSQL so the frontend can poll status, stage, page count, processed pages, chunk count, vector ID count, report-row count, and any failure message.
-* **FastAPI Supervisor Run API:** Supervisor workflows are now persisted backend runs. Creating a run requires selecting an existing company and one completed ingested document that belongs to that company. The API validates the company-document relationship, creates a run row, executes the supervisor workflow in the background, and stores per-agent status plus worker/supervisor JSON on the run row so the frontend can poll workflow history and run detail.
+* **FastAPI Supervisor Run API:** Supervisor workflows are now persisted backend runs. Creating a run requires selecting an existing company and one completed ingested document that belongs to that company. The API validates the company-document relationship, creates a run row, executes the supervisor workflow in the background, and stores per-agent status plus worker/supervisor JSON on the run row so the frontend can poll workflow history and run detail. During execution, the backend must route the company's normal/internal ticker into the fundamental worker and the company's Yahoo Finance ticker into the technical worker.
 
 ### 5.2. Frontend (React)
 

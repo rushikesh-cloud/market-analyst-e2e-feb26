@@ -11,6 +11,7 @@ from market_analyst.types.technical import TechnicalAnalysisResult
 class SupervisorAnalysisRequest:
     company_name: str
     ticker: str
+    yahoo_finance_ticker: str | None = None
     document_id: str | None = None
     sector: str | None = None
     fundamental_question: str | None = None

@@ -29,6 +29,7 @@ def execute_supervisor_run(settings: Settings, run_id: str) -> None:
     if document is None:
         raise ValueError(f"Document not found for supervisor run: {run_id}")
 
+    fundamental_ticker = str(company["ticker"])
     provider_ticker = str(company.get("yahoo_finance_ticker") or company["ticker"])
     document_id = str(run["document_id"])
 
@@ -46,7 +47,7 @@ def execute_supervisor_run(settings: Settings, run_id: str) -> None:
             settings,
             FundamentalAnalysisRequest(
                 company_name=str(company["name"]),
-                ticker=provider_ticker,
+                ticker=fundamental_ticker,
                 document_id=document_id,
             ),
         )
