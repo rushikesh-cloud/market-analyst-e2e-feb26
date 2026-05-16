@@ -41,10 +41,19 @@ export type UploadedDocument = {
   id: string;
   companyId: string;
   companyName: string;
+  documentName?: string;
   fileName: string;
   fileSize: number;
-  status: "uploaded" | "submitted";
+  status: "uploaded" | "processing" | "completed" | "failed";
+  stage?: "stored" | "extracting_markdown" | "chunking" | "embedding" | "syncing_reports" | "completed" | "failed";
+  pageCount?: number | null;
+  pagesProcessed?: number | null;
+  chunkCount?: number | null;
+  vectorIdsCount?: number | null;
+  reportsRows?: number | null;
+  errorMessage?: string | null;
   uploadedAt: string;
+  updatedAt?: string;
 };
 
 export type TimelineStep = {

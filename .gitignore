@@ -27,12 +27,16 @@ notebooks/outputs/
 reports/
 artifacts/
 outputs/
+uploads/
+api-server.log
+api-server.err.log
 
 # Frontend build artifacts
 frontend/node_modules/
 frontend/.next/
 frontend/out/
 frontend/dev-server.log
+frontend/dev-server.err.log
 
 # OS/editor noise
 .DS_Store

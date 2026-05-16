@@ -3,11 +3,8 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Building2, Plus, Save, Search, X } from "lucide-react";
-import { readStoredList, writeStoredList } from "@/lib/client-store";
-import { mockCompanies } from "@/lib/mock-data";
+import { createCompany, listCompanies } from "@/lib/api";
 import type { Company, CompanyDraft } from "@/lib/types";
-
-const STORAGE_KEY = "market-analyst:companies";
 
 const emptyDraft: CompanyDraft = {
   name: "",
@@ -17,34 +14,49 @@ const emptyDraft: CompanyDraft = {
 };
 
 export function CompanyDirectory() {
-  const [companies, setCompanies] = useState<Company[]>(mockCompanies);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [draft, setDraft] = useState<CompanyDraft>(emptyDraft);
   const [query, setQuery] = useState("");
   const [isAdding, setIsAdding] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setCompanies(readStoredList(STORAGE_KEY, mockCompanies));
+    let isMounted = true;
+    listCompanies()
+      .then((items) => {
+        if (isMounted) setCompanies(items);
+      })
+      .catch((apiError: unknown) => {
+        if (isMounted) setError(apiError instanceof Error ? apiError.message : "Unable to load companies");
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   function update(field: keyof CompanyDraft, value: string) {
     setDraft((current) => ({ ...current, [field]: value }));
   }
 
-  function saveCompany(event: FormEvent<HTMLFormElement>) {
+  async function saveCompany(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const nextCompany: Company = {
-      id: `company-${draft.ticker.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`,
-      name: draft.name.trim(),
-      ticker: draft.ticker.trim().toUpperCase(),
-      yahooFinanceTicker: draft.yahooFinanceTicker.trim().toUpperCase(),
-      sector: draft.sector.trim(),
-      createdAt: "Just now",
-    };
-    const nextCompanies = [nextCompany, ...companies];
-    setCompanies(nextCompanies);
-    writeStoredList(STORAGE_KEY, nextCompanies);
-    setDraft(emptyDraft);
-    setIsAdding(false);
+    setIsSaving(true);
+    setError(null);
+    try {
+      const nextCompany = await createCompany(draft);
+      setCompanies((current) => [nextCompany, ...current.filter((company) => company.id !== nextCompany.id)]);
+      setDraft(emptyDraft);
+      setIsAdding(false);
+    } catch (apiError) {
+      setError(apiError instanceof Error ? apiError.message : "Unable to save company");
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   const visibleCompanies = companies.filter((company) => {
@@ -119,12 +131,18 @@ export function CompanyDirectory() {
                 required
               />
             </label>
-            <button type="submit" className="flex h-10 items-center justify-center gap-2 rounded-lg bg-ink px-4 text-sm font-semibold text-white">
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="flex h-10 items-center justify-center gap-2 rounded-lg bg-ink px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
               <Save size={15} />
-              Save
+              {isSaving ? "Saving" : "Save"}
             </button>
           </form>
         ) : null}
+
+        {error ? <div className="border-b border-line bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div> : null}
 
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] border-collapse text-left">
@@ -138,6 +156,13 @@ export function CompanyDirectory() {
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
+              {isLoading ? (
+                <tr>
+                  <td className="px-4 py-5 text-sm text-muted" colSpan={5}>
+                    Loading companies...
+                  </td>
+                </tr>
+              ) : null}
               {visibleCompanies.map((company) => (
                 <tr key={company.id} className="transition hover:bg-slate-50">
                   <td className="px-4 py-3">
@@ -151,13 +176,26 @@ export function CompanyDirectory() {
                   <td className="px-4 py-3 text-sm text-ink">{company.ticker}</td>
                   <td className="px-4 py-3 text-sm text-ink">{company.yahooFinanceTicker}</td>
                   <td className="px-4 py-3 text-sm text-muted">{company.sector}</td>
-                  <td className="px-4 py-3 text-xs text-muted">{company.createdAt}</td>
+                  <td className="px-4 py-3 text-xs text-muted">{formatDate(company.createdAt)}</td>
                 </tr>
               ))}
+              {!isLoading && visibleCompanies.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-5 text-sm text-muted" colSpan={5}>
+                    No companies found.
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
       </section>
     </div>
   );
+}
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
 }

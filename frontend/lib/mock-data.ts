@@ -68,7 +68,7 @@ export const mockUploadedDocuments: UploadedDocument[] = [
     companyName: "Reliance Industries",
     fileName: "reliance-annual-report-2025.pdf",
     fileSize: 4_780_000,
-    status: "submitted",
+    status: "uploaded",
     uploadedAt: "Today, 10:18",
   },
   {

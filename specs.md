@@ -111,16 +111,20 @@ Notebook-specific requirements and acceptance criteria are defined in `docs/prod
 * **State Management:** The `AgentState` object will pass the ticker, the paths to generated charts, and the retrieved RAG contexts between nodes.
 * **Batch Processing:** Uses Python's `asyncio` to trigger the three agents in parallel within the LangGraph.
 * **Chat Engine:** A separate chat-facing supervisor agent exposes the three worker agents as callable tools and accepts bounded short-term message history for continuous follow-up questions.
+* **FastAPI Company API:** The first backend integration slice exposes company creation and listing through FastAPI. Company creation captures company name, internal ticker, Yahoo Finance ticker, and sector, then persists the normalized company row in PostgreSQL.
+* **FastAPI Document Injection API:** Document upload is asynchronous. The upload request stores the file under local `uploads/documents/`, creates a document row, and schedules ingestion in the background. Each ingestion stage is synced back to PostgreSQL so the frontend can poll status, stage, page count, processed pages, chunk count, vector ID count, report-row count, and any failure message.
 
 ### 5.2. Frontend (React)
 
 * **Workflow Page:** A one-user SaaS workspace lists every stock-analysis workflow with company name, ticker, run status, final supervisor rating, last updated time, and compact status indicators for the fundamental, technical, and news agents.
+* **Companies Page:** A company-master page lists every defined company with company name, internal ticker, Yahoo Finance ticker, sector, and added timestamp. A plus action opens a compact form for adding company name, ticker, Yahoo Finance ticker, and sector before saving through the FastAPI company API.
+* **Documents Page:** A document library page lists uploaded documents with document name, company name, file size, upload status, ingestion stage, page/chunk progress, and upload time. A plus action opens a form where the user selects a company, chooses a document file, submits it to the FastAPI document API, and polls database-backed ingestion status.
 * **New Workflow Flow:** A minimal stock form captures company name, ticker, optional sector, and a report/PDF placeholder. Submitting the form starts a supervisor workflow and routes the user into the run detail view.
 * **Run Detail Page:** The run detail view exposes the supervisor timeline, fixed initial prompt stage, vertically stacked collapsible fundamental, technical, and news agent streams, and the final supervisor outcome.
 * **Floating Chart Window:** Technical chart viewing is launched from a bottom-right floating chart control. Opening it shows the chart and technical answer in a small floating window without expanding the technical agent row.
 * **Streaming Adapter:** The first frontend scaffold uses mock streaming events with the same conceptual shape expected from the future backend: run started, agent started, agent chunk, chart ready, agent completed, supervisor started, supervisor chunk, supervisor completed, and error.
 * **Chat Pod:** A dedicated chat window is scoped to one completed stock run. Follow-up questions are answered by the supervisor against the existing worker outputs and stored workflow context.
-* **Integration Path:** The mock stream adapter will later be replaced by FastAPI streaming transport without rewriting the visual workflow, timeline, agent panels, supervisor panel, or chat pod.
+* **Integration Path:** Company and document pages use FastAPI transport first. The mock stream adapter for workflow, run detail, and chat will later be replaced by FastAPI streaming/polling transport without rewriting the visual workflow, timeline, agent panels, supervisor panel, or chat pod.
 
 ---
 

@@ -18,15 +18,39 @@ Status: initial planning reference. This file should be regenerated or updated w
 | created_at | timestamptz | Creation timestamp |
 | updated_at | timestamptz | Last update timestamp |
 
+### documents
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | uuid | Primary key |
+| company_id | uuid | Foreign key to `companies.id` |
+| document_name | text | Uploaded source document display name |
+| file_name | text | Stored upload filename |
+| content_type | text | Uploaded MIME type when available |
+| file_size | bigint | Uploaded file size in bytes |
+| source_path | text | Local upload path for the first FastAPI backend slice |
+| status | text | Upload/ingestion lifecycle state: `uploaded`, `processing`, `completed`, or `failed` |
+| stage | text | Current ingestion stage: `stored`, `extracting_markdown`, `chunking`, `embedding`, `syncing_reports`, `completed`, or `failed` |
+| page_count | integer | Total page count when Azure Document Intelligence returns it |
+| pages_processed | integer | Number of pages processed when available |
+| chunk_count | integer | Number of RAG chunks produced |
+| vector_ids_count | integer | Number of chunks written to the LangChain vector store |
+| reports_rows | integer | Number of project-level `reports` rows synced |
+| error_message | text | Failure detail for failed ingestion jobs |
+| metadata | jsonb | Upload metadata such as original filename |
+| created_at | timestamptz | Upload creation timestamp |
+| updated_at | timestamptz | Last status update timestamp |
+
 ### reports
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | id | uuid | Primary key |
 | company_id | uuid | Foreign key to `companies.id` |
+| document_id | uuid | Optional foreign key to `documents.id` when produced from an uploaded document |
 | document_name | text | Uploaded source document filename or display name |
 | source_path | text | Local path or blob URI for the report |
-| upload_status | text | Upload lifecycle state such as `uploaded`, `submitted`, `processing`, `completed`, or `failed` |
+| upload_status | text | Upload lifecycle state such as `uploaded`, `processing`, `completed`, or `failed` |
 | content | text | Extracted chunk text |
 | search_vector | tsvector | Generated full-text search vector derived from `content` and selected metadata |
 | embedding | vector | Reserved for future project-owned semantic retrieval; current ingestion leaves this nullable and stores semantic vectors in LangChain PGVector |
@@ -61,6 +85,9 @@ Full-text search is a first-class schema requirement, not a later enhancement. T
 | reports | GIN index on `search_vector` | Keyword and fiscal-year precision for full-text retrieval |
 | reports | Vector index on `embedding` | Reserved for future project-owned semantic retrieval |
 | reports | B-tree index on `company_id` | Company-scoped retrieval |
+| reports | B-tree index on `document_id` | Document-scoped cleanup and API traceability |
+| documents | B-tree index on `company_id` | Company-scoped document listing |
+| documents | B-tree index on `status` | Polling and operational status views |
 | companies | Unique index on `ticker` | Stable company lookup |
 
 ## Current LangChain Vector Store

@@ -61,9 +61,37 @@ def ensure_project_schema(settings: Settings) -> None:
                 CREATE TABLE IF NOT EXISTS companies (
                     id uuid PRIMARY KEY,
                     ticker text UNIQUE NOT NULL,
+                    yahoo_finance_ticker text,
                     name text NOT NULL,
+                    sector text,
                     overall_score numeric,
                     status text NOT NULL DEFAULT 'processing',
+                    created_at timestamptz NOT NULL DEFAULT now(),
+                    updated_at timestamptz NOT NULL DEFAULT now()
+                )
+                """
+            )
+            cur.execute("ALTER TABLE companies ADD COLUMN IF NOT EXISTS yahoo_finance_ticker text")
+            cur.execute("ALTER TABLE companies ADD COLUMN IF NOT EXISTS sector text")
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS documents (
+                    id uuid PRIMARY KEY,
+                    company_id uuid NOT NULL REFERENCES companies(id),
+                    document_name text NOT NULL,
+                    file_name text NOT NULL,
+                    content_type text,
+                    file_size bigint NOT NULL,
+                    source_path text NOT NULL,
+                    status text NOT NULL DEFAULT 'uploaded',
+                    stage text NOT NULL DEFAULT 'stored',
+                    page_count integer,
+                    pages_processed integer,
+                    chunk_count integer,
+                    vector_ids_count integer,
+                    reports_rows integer,
+                    error_message text,
+                    metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
                     created_at timestamptz NOT NULL DEFAULT now(),
                     updated_at timestamptz NOT NULL DEFAULT now()
                 )
@@ -74,7 +102,10 @@ def ensure_project_schema(settings: Settings) -> None:
                 CREATE TABLE IF NOT EXISTS reports (
                     id uuid PRIMARY KEY,
                     company_id uuid NOT NULL REFERENCES companies(id),
+                    document_id uuid REFERENCES documents(id),
+                    document_name text,
                     source_path text NOT NULL,
+                    upload_status text,
                     content text NOT NULL,
                     search_vector tsvector NOT NULL,
                     embedding vector,
@@ -84,7 +115,13 @@ def ensure_project_schema(settings: Settings) -> None:
                 )
                 """
             )
+            cur.execute("ALTER TABLE reports ADD COLUMN IF NOT EXISTS document_id uuid REFERENCES documents(id)")
+            cur.execute("ALTER TABLE reports ADD COLUMN IF NOT EXISTS document_name text")
+            cur.execute("ALTER TABLE reports ADD COLUMN IF NOT EXISTS upload_status text")
+            cur.execute("CREATE INDEX IF NOT EXISTS documents_company_id_idx ON documents(company_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS documents_status_idx ON documents(status)")
             cur.execute("CREATE INDEX IF NOT EXISTS reports_company_id_idx ON reports(company_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS reports_document_id_idx ON reports(document_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS reports_search_vector_idx ON reports USING GIN(search_vector)")
         conn.commit()
 
@@ -93,6 +130,7 @@ def sync_chunks_to_project_tables(
     settings: Settings,
     chunks: Sequence[Document],
     replace_source: bool = True,
+    document_id: str | None = None,
 ) -> int:
     ensure_project_schema(settings)
     inserted = 0
@@ -117,7 +155,10 @@ def sync_chunks_to_project_tables(
                     INSERT INTO reports (
                         id,
                         company_id,
+                        document_id,
+                        document_name,
                         source_path,
+                        upload_status,
                         content,
                         search_vector,
                         embedding,
@@ -125,6 +166,9 @@ def sync_chunks_to_project_tables(
                         metadata
                     )
                     VALUES (
+                        %s,
+                        %s,
+                        %s,
                         %s,
                         %s,
                         %s,
@@ -138,7 +182,10 @@ def sync_chunks_to_project_tables(
                     (
                         str(uuid4()),
                         company_ids[ticker],
+                        document_id,
+                        chunk.metadata.get("source_file"),
                         chunk.metadata["source_path"],
+                        "completed",
                         chunk.page_content,
                         _search_text(chunk),
                         chunk.metadata.get("page_number"),

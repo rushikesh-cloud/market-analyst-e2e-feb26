@@ -43,6 +43,8 @@ class Settings:
     azure_openai_embedding_deployment: str
     tavily_api_key: str
     vector_collection_name: str = "fundamental_report_chunks"
+    upload_dir: Path = PROJECT_ROOT / "uploads" / "documents"
+    cors_origins: tuple[str, ...] = ("http://localhost:3000", "http://127.0.0.1:3000")
 
     @property
     def database_url(self) -> str:
@@ -140,4 +142,10 @@ def load_settings() -> Settings:
         azure_openai_embedding_deployment=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", ""),
         tavily_api_key=os.getenv("TAVILY_API_KEY", ""),
         vector_collection_name=os.getenv("VECTOR_COLLECTION_NAME", "fundamental_report_chunks"),
+        upload_dir=Path(os.getenv("UPLOAD_DIR", str(PROJECT_ROOT / "uploads" / "documents"))),
+        cors_origins=tuple(
+            origin.strip()
+            for origin in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
+            if origin.strip()
+        ),
     )
