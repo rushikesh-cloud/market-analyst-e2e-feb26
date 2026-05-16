@@ -1,12 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Send } from "lucide-react";
 import type { ChatMessage } from "@/lib/types";
 
 export function ChatPanel({ enabled, initialMessages }: { enabled: boolean; initialMessages: ChatMessage[] }) {
-  const [messages, setMessages] = useState(initialMessages);
+  const [messages, setMessages] = useState<ChatMessage[]>(enabled ? initialMessages : []);
   const [draft, setDraft] = useState("");
+
+  useEffect(() => {
+    setMessages(enabled ? initialMessages : []);
+  }, [enabled, initialMessages]);
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -30,16 +34,22 @@ export function ChatPanel({ enabled, initialMessages }: { enabled: boolean; init
         <h2 className="text-sm font-semibold">Chat</h2>
       </div>
       <div className="thin-scrollbar grid max-h-[340px] gap-3 overflow-y-auto p-4">
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`max-w-[92%] rounded-lg px-3 py-2 text-sm leading-6 ${
-              message.role === "user" ? "ml-auto bg-ink text-white" : "bg-slate-50 text-slate-700"
-            }`}
-          >
-            {message.content}
+        {messages.length > 0 ? (
+          messages.map((message) => (
+            <div
+              key={message.id}
+              className={`max-w-[92%] rounded-lg px-3 py-2 text-sm leading-6 ${
+                message.role === "user" ? "ml-auto bg-ink text-white" : "bg-slate-50 text-slate-700"
+              }`}
+            >
+              {message.content}
+            </div>
+          ))
+        ) : (
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm leading-6 text-muted">
+            {enabled ? "The supervisor result is ready. Ask a follow-up about fundamentals, technicals, news, or the final rating." : "Chat becomes available after the supervisor completes."}
           </div>
-        ))}
+        )}
       </div>
       <form onSubmit={submit} className="flex gap-2 border-t border-line p-3">
         <input

@@ -156,21 +156,28 @@ function buildAgentOutputs(run: SupervisorRun): Record<AgentKey, AgentOutput> {
 }
 
 function hydrateAgentOutput(base: AgentOutput, worker: WorkerResult | null | undefined, status: string): AgentOutput {
+  const normalizedStatus = normalizeAgentStatus(status);
   if (!worker) {
     return {
-      ...base,
-      status: normalizeAgentStatus(status),
-      stream: status === "running" ? "Worker is executing on the backend." : base.stream,
+      key: base.key,
+      title: base.title,
+      status: normalizedStatus,
+      stream: status === "running" ? "Worker is executing on the backend." : "",
+      evidence: [],
+      details: {},
     };
   }
 
+  const displayWorker = buildDisplayWorker(worker);
+
   return {
-    ...base,
-    rating: typeof worker.rating === "number" ? worker.rating : undefined,
-    stream: typeof worker.answer === "string" ? worker.answer : base.stream,
-    evidence: extractEvidence(worker),
-    details: extractDetails(worker),
-    status: normalizeAgentStatus(status),
+    key: base.key,
+    title: base.title,
+    rating: extractWorkerRating(worker, displayWorker),
+    stream: buildWorkerSummary(worker, displayWorker, normalizedStatus),
+    evidence: extractEvidence(displayWorker),
+    details: extractDetails(displayWorker),
+    status: normalizedStatus,
   };
 }
 
@@ -193,7 +200,7 @@ function extractEvidence(worker: WorkerResult): string[] {
   const entries = Object.entries(worker)
     .filter(([key, value]) => Array.isArray(value) && value.length > 0 && !["sources"].includes(key))
     .flatMap(([, value]) => (value as unknown[]).map((item) => String(item)));
-  return entries.length > 0 ? entries.slice(0, 6) : ["Backend result captured for this worker."];
+  return entries.slice(0, 6);
 }
 
 function extractDetails(worker: WorkerResult): Record<string, string | string[]> {
@@ -205,7 +212,10 @@ function extractDetails(worker: WorkerResult): Record<string, string | string[]>
       return;
     }
     if (typeof value === "object") {
-      details[prettyLabel(key)] = JSON.stringify(value);
+      const formatted = formatNestedValue(value);
+      if (formatted) {
+        details[prettyLabel(key)] = formatted;
+      }
       return;
     }
     details[prettyLabel(key)] = String(value);
@@ -220,6 +230,132 @@ function prettyLabel(value: string): string {
   return value
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function buildDisplayWorker(worker: WorkerResult): WorkerResult {
+  const parsedAnswer = parseJsonObject(worker.answer);
+  if (!parsedAnswer) {
+    return worker;
+  }
+
+  return {
+    ...parsedAnswer,
+    company_name: worker.company_name ?? readString(parsedAnswer.company_name),
+    ticker: worker.ticker ?? readString(parsedAnswer.ticker),
+    sector: worker.sector ?? readString(parsedAnswer.sector),
+    question: worker.question,
+    answer: worker.answer,
+    rating: worker.rating,
+    chart_path: worker.chart_path,
+    artifact: worker.artifact,
+  };
+}
+
+function buildWorkerSummary(worker: WorkerResult, displayWorker: WorkerResult, status: AgentOutput["status"]): string {
+  const parsedAnswer = parseJsonObject(worker.answer);
+  if (parsedAnswer) {
+    const structuredSummary = firstStructuredSummary(parsedAnswer);
+    if (structuredSummary) {
+      return structuredSummary;
+    }
+  }
+
+  if (typeof worker.answer === "string" && worker.answer.trim()) {
+    return worker.answer;
+  }
+
+  if (status === "running") {
+    return "Worker is executing on the backend.";
+  }
+
+  const fallbackSummary = firstStructuredSummary(displayWorker);
+  return fallbackSummary ?? "";
+}
+
+function extractWorkerRating(worker: WorkerResult, displayWorker: WorkerResult): number | undefined {
+  if (typeof worker.rating === "number") {
+    return worker.rating;
+  }
+
+  const candidates = ["fundamental_rating", "technical_rating", "news_rating", "sentiment_score", "score"];
+  for (const key of candidates) {
+    const value = displayWorker[key];
+    if (typeof value === "number") {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+function parseJsonObject(value: unknown): WorkerResult | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{")) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as WorkerResult) : null;
+  } catch {
+    return null;
+  }
+}
+
+function firstStructuredSummary(payload: WorkerResult): string | null {
+  const preferredFields = ["rationale", "trend", "summary", "sector_context", "stock_implications", "support_resistance"];
+  for (const field of preferredFields) {
+    const value = payload[field];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  const preferredLists = ["positive_developments", "negative_developments", "watch_items", "growth", "risks"];
+  for (const field of preferredLists) {
+    const value = payload[field];
+    if (Array.isArray(value) && value.length > 0) {
+      return String(value[0]);
+    }
+  }
+
+  return null;
+}
+
+function formatNestedValue(value: unknown): string | string[] | null {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item));
+  }
+
+  if (!value || typeof value !== "object") {
+    return value == null ? null : String(value);
+  }
+
+  const record = value as Record<string, unknown>;
+  if (typeof record.title === "string" && typeof record.url === "string") {
+    return `${record.title} (${record.url})`;
+  }
+
+  const parts = Object.entries(record)
+    .map(([key, item]) => {
+      if (item == null) return null;
+      return `${prettyLabel(key)}: ${Array.isArray(item) ? item.join(", ") : String(item)}`;
+    })
+    .filter((item): item is string => Boolean(item));
+
+  if (parts.length === 0) {
+    return null;
+  }
+
+  return parts;
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value : undefined;
 }
 
 function normalizeAgentStatus(status: string | undefined): AgentOutput["status"] {

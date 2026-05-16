@@ -24,6 +24,8 @@ export function AgentPanel({ output, defaultOpen = false }: { output: AgentOutpu
   const isRunning = output.status === "running";
   const isCompleted = output.status === "completed";
   const preview = output.stream || "Waiting for agent stream.";
+  const hasEvidence = output.evidence.length > 0;
+  const hasDetails = Object.keys(output.details).length > 0;
 
   return (
     <section className="min-w-0 rounded-xl border border-line bg-panel shadow-soft">
@@ -53,22 +55,26 @@ export function AgentPanel({ output, defaultOpen = false }: { output: AgentOutpu
           <div className="min-h-24 rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-700">
             {output.stream ? <span className={isRunning ? "stream-cursor" : ""}>{output.stream}</span> : <span className="text-muted">Waiting for agent stream.</span>}
           </div>
-          <div className="grid gap-2">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">Evidence</div>
-            {output.evidence.map((item) => (
-              <div key={item} className="rounded-lg border border-line px-3 py-2 text-xs leading-5 text-slate-700">
-                {item}
-              </div>
-            ))}
-          </div>
-          <div className="grid gap-2 md:grid-cols-3">
-            {Object.entries(output.details).map(([label, value]) => (
-              <div key={label} className="min-w-0 rounded-lg bg-slate-50 p-3">
-                <div className="text-[11px] font-semibold text-muted">{label}</div>
-                <div className="mt-1 text-xs leading-5 text-slate-700">{Array.isArray(value) ? value.join(", ") : value}</div>
-              </div>
-            ))}
-          </div>
+          {hasEvidence ? (
+            <div className="grid gap-2">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">Evidence</div>
+              {output.evidence.map((item) => (
+                <div key={item} className="rounded-lg border border-line px-3 py-2 text-xs leading-5 text-slate-700">
+                  {item}
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {hasDetails ? (
+            <div className="grid gap-2 md:grid-cols-3">
+              {Object.entries(output.details).map(([label, value]) => (
+                <div key={label} className="min-w-0 rounded-lg bg-slate-50 p-3">
+                  <div className="text-[11px] font-semibold text-muted">{label}</div>
+                  <div className="mt-1 text-xs leading-5 text-slate-700">{Array.isArray(value) ? value.join(", ") : value}</div>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </section>
