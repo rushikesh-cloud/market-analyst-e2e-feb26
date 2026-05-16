@@ -100,6 +100,12 @@ def _supervisor_run_row() -> dict[str, object]:
     }
 
 
+def _supervisor_run_with_chart(chart_path: str) -> dict[str, object]:
+    row = _supervisor_run_row()
+    row["technical"] = {"chart_path": chart_path}
+    return row
+
+
 def test_company_create_and_list_routes(monkeypatch, tmp_path) -> None:
     settings = _settings(tmp_path)
     app.dependency_overrides[dependencies.get_settings] = lambda: settings
@@ -217,3 +223,23 @@ def test_supervisor_run_create_rejects_document_company_mismatch(monkeypatch, tm
     app.dependency_overrides.clear()
     assert response.status_code == 409
     assert "Document does not belong" in response.text
+
+
+def test_supervisor_run_chart_route_returns_file(monkeypatch, tmp_path) -> None:
+    settings = _settings(tmp_path)
+    app.dependency_overrides[dependencies.get_settings] = lambda: settings
+    chart_path = tmp_path / "chart.png"
+    chart_path.write_bytes(b"png")
+    monkeypatch.setattr(supervisor_runs_route, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(
+        supervisor_runs_route,
+        "get_supervisor_run",
+        lambda passed_settings, run_id: _supervisor_run_with_chart(str(chart_path)),
+    )
+
+    client = TestClient(app)
+    response = client.get("/api/supervisor-runs/351f4fd0-d620-4fb3-9ff0-5449283310cd/technical-chart")
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.content == b"png"

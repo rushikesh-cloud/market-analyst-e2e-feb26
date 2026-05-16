@@ -58,6 +58,10 @@ export function getSupervisorRun(runId: string): Promise<SupervisorRun> {
   return request<SupervisorRun>(`/api/supervisor-runs/${runId}`);
 }
 
+export function getSupervisorRunTechnicalChartUrl(runId: string): string {
+  return `${API_BASE_URL}/api/supervisor-runs/${runId}/technical-chart`;
+}
+
 export function createSupervisorRun(companyId: string, documentId: string): Promise<SupervisorRun> {
   return request<SupervisorRun>("/api/supervisor-runs", {
     method: "POST",

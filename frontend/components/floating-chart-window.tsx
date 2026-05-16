@@ -4,27 +4,6 @@ import { useState } from "react";
 import { BarChart3, Loader2, Maximize2, X } from "lucide-react";
 import type { AgentOutput } from "@/lib/types";
 
-function MockTechnicalChart({ visible }: { visible: boolean }) {
-  return (
-    <div className="h-48 rounded-lg border border-line bg-slate-50 p-3">
-      {visible ? (
-        <svg viewBox="0 0 420 160" className="h-full w-full" role="img" aria-label="Mock technical chart">
-          <path d="M0 128 C50 112 72 120 110 92 C152 60 174 76 210 62 C252 46 282 58 318 34 C356 10 382 24 420 18" fill="none" stroke="#2563eb" strokeWidth="4" />
-          <path d="M0 118 C52 108 92 104 132 90 C188 70 236 65 284 52 C340 35 378 30 420 28" fill="none" stroke="#94a3b8" strokeWidth="2" strokeDasharray="5 6" />
-          <line x1="0" y1="126" x2="420" y2="126" stroke="#e2e8f0" />
-          <line x1="0" y1="82" x2="420" y2="82" stroke="#e2e8f0" />
-          <line x1="0" y1="38" x2="420" y2="38" stroke="#e2e8f0" />
-        </svg>
-      ) : (
-        <div className="flex h-full items-center justify-center gap-2 text-xs font-medium text-muted">
-          <Loader2 size={14} className="animate-spin" />
-          Chart pending
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function FloatingChartWindow({ output, chartReady }: { output: AgentOutput; chartReady: boolean }) {
   const [open, setOpen] = useState(false);
   const hasRating = typeof output.rating === "number";
@@ -48,7 +27,16 @@ export function FloatingChartWindow({ output, chartReady }: { output: AgentOutpu
             </button>
           </div>
           <div className="grid gap-3 p-3">
-            <MockTechnicalChart visible={chartReady} />
+            <div className="h-48 overflow-hidden rounded-lg border border-line bg-slate-50 p-3">
+              {chartReady && output.chartUrl ? (
+                <img src={output.chartUrl} alt="Technical chart" className="h-full w-full object-contain" />
+              ) : (
+                <div className="flex h-full items-center justify-center gap-2 text-xs font-medium text-muted">
+                  <Loader2 size={14} className="animate-spin" />
+                  Chart pending
+                </div>
+              )}
+            </div>
             <div className="max-h-28 overflow-y-auto rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-700 thin-scrollbar">
               {output.stream || "The technical agent answer will appear here once chart analysis starts."}
             </div>

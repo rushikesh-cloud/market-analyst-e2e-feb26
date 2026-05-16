@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+
+@dataclass(frozen=True)
+class NewsSourceReference:
+    title: str
+    url: str
 
 
 @dataclass(frozen=True)
@@ -22,3 +28,4 @@ class NewsAnalysisResult:
     answer: str
     rating: int | None = None
     sentiment_score: int | None = None
+    sources: list[NewsSourceReference] = field(default_factory=list)

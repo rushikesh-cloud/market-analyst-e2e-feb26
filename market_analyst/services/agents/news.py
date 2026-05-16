@@ -8,7 +8,7 @@ from market_analyst.config.settings import Settings
 from market_analyst.providers.tavily import build_tavily_search_tool
 from market_analyst.services.agent import build_chat_model
 from market_analyst.services.scoring import extract_rating, normalize_rating, parse_json_object
-from market_analyst.types.news import NewsAnalysisRequest, NewsAnalysisResult
+from market_analyst.types.news import NewsAnalysisRequest, NewsAnalysisResult, NewsSourceReference
 
 
 DEFAULT_NEWS_ANALYSIS_QUESTION = (
@@ -82,6 +82,7 @@ def run_news_analysis_agent(settings: Settings, request: NewsAnalysisRequest) ->
     answer = extract_final_message_content(result)
     payload = parse_json_object(answer)
     rating = extract_rating(payload, keys=("rating", "sentiment_score", "news_rating", "score"))
+    sources = extract_sources(payload)
     return NewsAnalysisResult(
         company_name=request.company_name,
         ticker=request.ticker,
@@ -90,6 +91,7 @@ def run_news_analysis_agent(settings: Settings, request: NewsAnalysisRequest) ->
         answer=answer,
         rating=rating,
         sentiment_score=rating,
+        sources=sources,
     )
 
 
@@ -128,3 +130,25 @@ def extract_final_message_content(agent_result: dict[str, Any]) -> str:
 
 def extract_sentiment_score(payload: dict[str, Any]) -> int | None:
     return normalize_rating(payload.get("sentiment_score"))
+
+
+def extract_sources(payload: dict[str, Any]) -> list[NewsSourceReference]:
+    raw_sources = payload.get("sources")
+    if not isinstance(raw_sources, list):
+        return []
+
+    sources: list[NewsSourceReference] = []
+    seen: set[tuple[str, str]] = set()
+    for item in raw_sources:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title", "")).strip()
+        url = str(item.get("url", "")).strip()
+        if not title or not url:
+            continue
+        key = (title, url)
+        if key in seen:
+            continue
+        seen.add(key)
+        sources.append(NewsSourceReference(title=title, url=url))
+    return sources

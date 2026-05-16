@@ -8,16 +8,16 @@ import { ChatPanel } from "@/components/chat-panel";
 import { FloatingChartWindow } from "@/components/floating-chart-window";
 import { RunTimeline } from "@/components/run-timeline";
 import { SupervisorPanel } from "@/components/supervisor-panel";
-import { getSupervisorRun } from "@/lib/api";
+import { getSupervisorRun, getSupervisorRunTechnicalChartUrl } from "@/lib/api";
 import { baseAgentOutputs, mockChatMessages, timelineSteps } from "@/lib/mock-data";
-import type { AgentKey, AgentOutput, SupervisorOutput, SupervisorResult, SupervisorRun, WorkerResult } from "@/lib/types";
+import type { AgentKey, AgentOutput, SourceReference, SupervisorOutput, SupervisorResult, SupervisorRun, WorkerResult } from "@/lib/types";
 
 
 function cloneAgentOutputs(): Record<AgentKey, AgentOutput> {
   return {
-    fundamental: { ...baseAgentOutputs.fundamental, details: { ...baseAgentOutputs.fundamental.details }, evidence: [...baseAgentOutputs.fundamental.evidence] },
-    technical: { ...baseAgentOutputs.technical, details: { ...baseAgentOutputs.technical.details }, evidence: [...baseAgentOutputs.technical.evidence] },
-    news: { ...baseAgentOutputs.news, details: { ...baseAgentOutputs.news.details }, evidence: [...baseAgentOutputs.news.evidence] },
+    fundamental: { ...baseAgentOutputs.fundamental, details: { ...baseAgentOutputs.fundamental.details }, evidence: [...baseAgentOutputs.fundamental.evidence], sources: [...baseAgentOutputs.fundamental.sources] },
+    technical: { ...baseAgentOutputs.technical, details: { ...baseAgentOutputs.technical.details }, evidence: [...baseAgentOutputs.technical.evidence], sources: [...baseAgentOutputs.technical.sources] },
+    news: { ...baseAgentOutputs.news, details: { ...baseAgentOutputs.news.details }, evidence: [...baseAgentOutputs.news.evidence], sources: [...baseAgentOutputs.news.sources] },
   };
 }
 
@@ -149,13 +149,13 @@ export function RunWorkspace({ runId }: { runId: string }) {
 
 function buildAgentOutputs(run: SupervisorRun): Record<AgentKey, AgentOutput> {
   const outputs = cloneAgentOutputs();
-  outputs.fundamental = hydrateAgentOutput(outputs.fundamental, run.fundamental, run.fundamentalStatus);
-  outputs.technical = hydrateAgentOutput(outputs.technical, run.technical, run.technicalStatus);
-  outputs.news = hydrateAgentOutput(outputs.news, run.news, run.newsStatus);
+  outputs.fundamental = hydrateAgentOutput(outputs.fundamental, run.fundamental, run.fundamentalStatus, run.id);
+  outputs.technical = hydrateAgentOutput(outputs.technical, run.technical, run.technicalStatus, run.id);
+  outputs.news = hydrateAgentOutput(outputs.news, run.news, run.newsStatus, run.id);
   return outputs;
 }
 
-function hydrateAgentOutput(base: AgentOutput, worker: WorkerResult | null | undefined, status: string): AgentOutput {
+function hydrateAgentOutput(base: AgentOutput, worker: WorkerResult | null | undefined, status: string, runId: string): AgentOutput {
   const normalizedStatus = normalizeAgentStatus(status);
   if (!worker) {
     return {
@@ -164,6 +164,7 @@ function hydrateAgentOutput(base: AgentOutput, worker: WorkerResult | null | und
       status: normalizedStatus,
       stream: status === "running" ? "Worker is executing on the backend." : "",
       evidence: [],
+      sources: [],
       details: {},
     };
   }
@@ -176,6 +177,8 @@ function hydrateAgentOutput(base: AgentOutput, worker: WorkerResult | null | und
     rating: extractWorkerRating(worker, displayWorker),
     stream: buildWorkerSummary(worker, displayWorker, normalizedStatus),
     evidence: extractEvidence(displayWorker),
+    sources: extractSources(base.key, displayWorker),
+    chartUrl: base.key === "technical" && typeof displayWorker.chart_path === "string" ? getSupervisorRunTechnicalChartUrl(runId) : undefined,
     details: extractDetails(displayWorker),
     status: normalizedStatus,
   };
@@ -206,9 +209,12 @@ function extractEvidence(worker: WorkerResult): string[] {
 function extractDetails(worker: WorkerResult): Record<string, string | string[]> {
   const details: Record<string, string | string[]> = {};
   Object.entries(worker).forEach(([key, value]) => {
-    if (["answer", "rating", "question", "chart_path", "artifact"].includes(key) || value == null) return;
+    if (["answer", "rating", "question", "chart_path", "artifact", "sources"].includes(key) || value == null) return;
     if (Array.isArray(value)) {
-      details[prettyLabel(key)] = value.map((item) => String(item));
+      const formattedArray = formatArrayValue(value);
+      if (formattedArray.length > 0) {
+        details[prettyLabel(key)] = formattedArray;
+      }
       return;
     }
     if (typeof value === "object") {
@@ -243,6 +249,7 @@ function buildDisplayWorker(worker: WorkerResult): WorkerResult {
     company_name: worker.company_name ?? readString(parsedAnswer.company_name),
     ticker: worker.ticker ?? readString(parsedAnswer.ticker),
     sector: worker.sector ?? readString(parsedAnswer.sector),
+    sources: Array.isArray(worker.sources) ? worker.sources : parsedAnswer.sources,
     question: worker.question,
     answer: worker.answer,
     rating: worker.rating,
@@ -352,6 +359,51 @@ function formatNestedValue(value: unknown): string | string[] | null {
   }
 
   return parts;
+}
+
+function formatArrayValue(value: unknown[]): string[] {
+  return value
+    .flatMap((item) => {
+      const formatted = typeof item === "object" && item !== null ? formatNestedValue(item) : String(item);
+      if (!formatted) return [];
+      return Array.isArray(formatted) ? formatted : [formatted];
+    })
+    .filter((item) => item.trim().length > 0);
+}
+
+function extractSources(agentKey: AgentKey, worker: WorkerResult): SourceReference[] {
+  const rawSources = worker.sources;
+  if (!Array.isArray(rawSources)) {
+    return [];
+  }
+
+  if (agentKey === "news") {
+    return rawSources.reduce<SourceReference[]>((items, item) => {
+      if (!item || typeof item !== "object") return items;
+      const title = readString((item as Record<string, unknown>).title);
+      const href = readString((item as Record<string, unknown>).url);
+      if (!title || !href) return items;
+      items.push({ label: title, href });
+      return items;
+    }, []);
+  }
+
+  if (agentKey === "fundamental") {
+    return rawSources.reduce<SourceReference[]>((items, item) => {
+      if (!item || typeof item !== "object") return items;
+      const record = item as Record<string, unknown>;
+      const documentName = readString(record.document_name) ?? "Annual report";
+      const pageNumber = typeof record.page_number === "number" ? record.page_number : undefined;
+      const headingPath = readString(record.heading_path);
+      const parts = [documentName];
+      if (pageNumber) parts.push(`Page ${pageNumber}`);
+      if (headingPath) parts.push(headingPath);
+      items.push({ label: parts.join(" · ") });
+      return items;
+    }, []);
+  }
+
+  return [];
 }
 
 function readString(value: unknown): string | undefined {

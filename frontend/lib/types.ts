@@ -102,8 +102,15 @@ export type AgentOutput = {
   rating?: number;
   stream: string;
   evidence: string[];
+  sources: SourceReference[];
+  chartUrl?: string;
   details: Record<string, string | string[]>;
   status: AgentStatus;
+};
+
+export type SourceReference = {
+  label: string;
+  href?: string;
 };
 
 export type WorkerResult = {

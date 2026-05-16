@@ -26,6 +26,7 @@ export function AgentPanel({ output, defaultOpen = false }: { output: AgentOutpu
   const preview = output.stream || "Waiting for agent stream.";
   const hasEvidence = output.evidence.length > 0;
   const hasDetails = Object.keys(output.details).length > 0;
+  const hasSources = output.sources.length > 0;
 
   return (
     <section className="min-w-0 rounded-xl border border-line bg-panel shadow-soft">
@@ -52,6 +53,11 @@ export function AgentPanel({ output, defaultOpen = false }: { output: AgentOutpu
       </button>
       {open ? (
         <div className="grid gap-4 p-4">
+          {output.chartUrl ? (
+            <div className="overflow-hidden rounded-lg border border-line bg-slate-50">
+              <img src={output.chartUrl} alt={`${output.title} chart`} className="h-auto w-full object-contain" />
+            </div>
+          ) : null}
           <div className="min-h-24 rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-700">
             {output.stream ? <span className={isRunning ? "stream-cursor" : ""}>{output.stream}</span> : <span className="text-muted">Waiting for agent stream.</span>}
           </div>
@@ -72,6 +78,28 @@ export function AgentPanel({ output, defaultOpen = false }: { output: AgentOutpu
                   <div className="text-[11px] font-semibold text-muted">{label}</div>
                   <div className="mt-1 text-xs leading-5 text-slate-700">{Array.isArray(value) ? value.join(", ") : value}</div>
                 </div>
+              ))}
+            </div>
+          ) : null}
+          {hasSources ? (
+            <div className="grid gap-2">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">Sources</div>
+              {output.sources.map((source) => (
+                source.href ? (
+                  <a
+                    key={`${source.label}-${source.href}`}
+                    href={source.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-lg border border-line px-3 py-2 text-xs leading-5 text-blue-700 hover:bg-slate-50"
+                  >
+                    {source.label}
+                  </a>
+                ) : (
+                  <div key={source.label} className="rounded-lg border border-line px-3 py-2 text-xs leading-5 text-slate-700">
+                    {source.label}
+                  </div>
+                )
               ))}
             </div>
           ) : null}

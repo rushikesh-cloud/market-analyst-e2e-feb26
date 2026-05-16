@@ -99,6 +99,7 @@ export const baseAgentOutputs: Record<AgentKey, AgentOutput> = {
     title: "Fundamentals",
     status: "idle",
     stream: "",
+    sources: [],
     evidence: [
       "Revenue growth is steady, with improved operating leverage.",
       "Debt profile is manageable against cash-flow generation.",
@@ -115,6 +116,7 @@ export const baseAgentOutputs: Record<AgentKey, AgentOutput> = {
     title: "Technical",
     status: "idle",
     stream: "",
+    sources: [],
     evidence: [
       "Price remains above the 50-day moving average.",
       "RSI is firm without entering extreme overbought territory.",
@@ -131,6 +133,7 @@ export const baseAgentOutputs: Record<AgentKey, AgentOutput> = {
     title: "News",
     status: "idle",
     stream: "",
+    sources: [],
     evidence: [
       "Recent coverage is net favorable with sector demand tailwinds.",
       "Adverse items are mainly valuation and execution-risk related.",

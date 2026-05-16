@@ -1,5 +1,6 @@
 from market_analyst.services.agents.news import (
     build_news_analysis_prompt,
+    extract_sources,
     extract_sentiment_score,
     parse_json_object,
 )
@@ -39,3 +40,18 @@ def test_extract_sentiment_score_clamps_numeric_values() -> None:
     assert extract_sentiment_score({"sentiment_score": 120}) == 100
     assert extract_sentiment_score({"sentiment_score": -10}) == 1
     assert extract_sentiment_score({"sentiment_score": True}) is None
+
+
+def test_extract_sources_filters_invalid_entries() -> None:
+    sources = extract_sources(
+        {
+            "sources": [
+                {"title": "Reuters", "url": "https://example.com/reuters"},
+                {"title": "", "url": "https://example.com/invalid"},
+                {"title": "Reuters", "url": "https://example.com/reuters"},
+            ]
+        }
+    )
+
+    assert len(sources) == 1
+    assert sources[0].title == "Reuters"

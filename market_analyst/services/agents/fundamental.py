@@ -3,9 +3,10 @@ from __future__ import annotations
 from typing import Any
 
 from market_analyst.config.settings import Settings
+from market_analyst.repositories.vector_db import hybrid_search
 from market_analyst.services.agent import build_market_analysis_agent
 from market_analyst.services.scoring import extract_rating_from_text
-from market_analyst.types.fundamental import FundamentalAnalysisRequest, FundamentalAnalysisResult
+from market_analyst.types.fundamental import FundamentalAnalysisRequest, FundamentalAnalysisResult, FundamentalSourceReference
 
 
 DEFAULT_FUNDAMENTAL_ANALYSIS_QUESTION = (
@@ -70,12 +71,20 @@ def run_fundamental_analysis_agent(
     result = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
     answer = extract_final_message_content(result)
     rating = extract_rating_from_text(answer, keys=("fundamental_rating", "rating", "score"))
+    sources = compile_fundamental_sources(
+        settings,
+        query=question,
+        ticker=normalized_ticker,
+        document_id=request.document_id,
+        limit=request.retrieval_limit,
+    )
     return FundamentalAnalysisResult(
         company_name=request.company_name,
         ticker=normalized_ticker,
         question=question,
         answer=answer,
         rating=rating,
+        sources=sources,
     )
 
 
@@ -118,3 +127,59 @@ def extract_final_message_content(agent_result: dict[str, Any]) -> str:
     if isinstance(content, list):
         return "\n".join(str(part) for part in content)
     return str(content)
+
+
+def compile_fundamental_sources(
+    settings: Settings,
+    *,
+    query: str,
+    ticker: str | None,
+    document_id: str | None,
+    limit: int,
+) -> list[FundamentalSourceReference]:
+    rows = hybrid_search(
+        settings,
+        query=query,
+        ticker=ticker,
+        document_id=document_id,
+        limit=limit,
+    )
+
+    sources: list[FundamentalSourceReference] = []
+    seen: set[tuple[str | None, int | None, str | None, str | None, str | None]] = set()
+    for row in rows:
+        metadata = row.get("metadata") if isinstance(row.get("metadata"), dict) else {}
+        source = FundamentalSourceReference(
+            document_name=_read_string(metadata.get("source_file")),
+            page_number=_read_page_number(metadata.get("page_number")),
+            heading_path=_read_string(metadata.get("heading_path")),
+            source_path=_read_string(metadata.get("source_path")),
+            chunk_id=_read_string(metadata.get("chunk_id")),
+        )
+        key = (source.document_name, source.page_number, source.heading_path, source.source_path, source.chunk_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        sources.append(source)
+    return sources
+
+
+def _read_string(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _read_page_number(value: object) -> int | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    text = _read_string(value)
+    if not text:
+        return None
+    try:
+        return int(text)
+    except ValueError:
+        return None

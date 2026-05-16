@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi.responses import FileResponse
 
 from market_analyst.api.dependencies import get_settings
 from market_analyst.api.schemas import SupervisorRunCreateRequest, SupervisorRunResponse
-from market_analyst.config.settings import Settings
+from market_analyst.config.settings import PROJECT_ROOT, Settings
 from market_analyst.repositories.companies import get_company
 from market_analyst.repositories.documents import get_document
 from market_analyst.repositories.supervisor_runs import create_supervisor_run, get_supervisor_run, list_supervisor_runs
@@ -55,3 +58,33 @@ def get_supervisor_run_status(
     if run is None:
         raise HTTPException(status_code=404, detail="Supervisor run not found")
     return run
+
+
+@router.get("/{run_id}/technical-chart")
+def get_supervisor_run_technical_chart(
+    run_id: str,
+    settings: Settings = Depends(get_settings),
+) -> FileResponse:
+    run = get_supervisor_run(settings, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Supervisor run not found")
+
+    technical = run.get("technical")
+    chart_path = technical.get("chart_path") if isinstance(technical, dict) else None
+    if not isinstance(chart_path, str) or not chart_path.strip():
+        raise HTTPException(status_code=404, detail="Technical chart not available for this run")
+
+    file_path = Path(chart_path).expanduser().resolve()
+    if not file_path.is_file():
+        raise HTTPException(status_code=404, detail="Technical chart file not found")
+    try:
+        file_path.relative_to(PROJECT_ROOT.resolve())
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Technical chart file is outside the allowed project scope") from exc
+
+    media_type = "image/png"
+    if file_path.suffix.lower() in {".jpg", ".jpeg"}:
+        media_type = "image/jpeg"
+    elif file_path.suffix.lower() == ".webp":
+        media_type = "image/webp"
+    return FileResponse(path=file_path, media_type=media_type, filename=file_path.name)
