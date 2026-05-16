@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -18,7 +19,7 @@ class CompanyCreateRequest(ApiModel):
 
 
 class CompanyResponse(ApiModel):
-    id: str
+    id: UUID
     name: str
     ticker: str
     yahoo_finance_ticker: str | None = Field(default=None, alias="yahooFinanceTicker")
@@ -30,8 +31,8 @@ class CompanyResponse(ApiModel):
 
 
 class DocumentResponse(ApiModel):
-    id: str
-    company_id: str = Field(alias="companyId")
+    id: UUID
+    company_id: UUID = Field(alias="companyId")
     company_name: str = Field(alias="companyName")
     document_name: str = Field(alias="documentName")
     file_name: str = Field(alias="fileName")

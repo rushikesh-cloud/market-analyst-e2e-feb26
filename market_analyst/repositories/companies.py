@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from decimal import Decimal
+from typing import Any
+from uuid import UUID
 from uuid import uuid4
 
 import psycopg
@@ -20,7 +23,7 @@ def list_companies(settings: Settings) -> list[dict[str, object]]:
                 ORDER BY created_at DESC
                 """
             )
-            return [dict(row) for row in cur.fetchall()]
+            return [_serialize_company_row(row) for row in cur.fetchall()]
 
 
 def get_company(settings: Settings, company_id: str) -> dict[str, object] | None:
@@ -36,7 +39,7 @@ def get_company(settings: Settings, company_id: str) -> dict[str, object] | None
                 (company_id,),
             )
             row = cur.fetchone()
-    return dict(row) if row else None
+    return _serialize_company_row(row) if row else None
 
 
 def get_company_by_ticker(settings: Settings, ticker: str) -> dict[str, object] | None:
@@ -52,7 +55,7 @@ def get_company_by_ticker(settings: Settings, ticker: str) -> dict[str, object] 
                 (ticker.upper(),),
             )
             row = cur.fetchone()
-    return dict(row) if row else None
+    return _serialize_company_row(row) if row else None
 
 
 def create_company(
@@ -87,4 +90,13 @@ def create_company(
         conn.commit()
     if row is None:
         raise RuntimeError(f"Failed to create company {normalized_ticker}")
-    return dict(row)
+    return _serialize_company_row(row)
+
+
+def _serialize_company_row(row: dict[str, Any]) -> dict[str, object]:
+    serialized = dict(row)
+    if isinstance(serialized.get("id"), UUID):
+        serialized["id"] = str(serialized["id"])
+    if isinstance(serialized.get("overall_score"), Decimal):
+        serialized["overall_score"] = float(serialized["overall_score"])
+    return serialized

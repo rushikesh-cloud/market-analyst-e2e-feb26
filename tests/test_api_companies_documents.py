@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
+from uuid import UUID
 
 from fastapi.testclient import TestClient
 
@@ -36,7 +37,7 @@ def _settings(tmp_path: Path) -> Settings:
 
 def _company_row() -> dict[str, object]:
     return {
-        "id": "company-1",
+        "id": UUID("0d001055-2737-4c3b-adff-25d1cda5c831"),
         "name": "Reliance Industries",
         "ticker": "RELIANCE",
         "yahoo_finance_ticker": "RELIANCE.NS",
@@ -50,8 +51,8 @@ def _company_row() -> dict[str, object]:
 
 def _document_row(source_path: str) -> dict[str, object]:
     return {
-        "id": "document-1",
-        "company_id": "company-1",
+        "id": UUID("75961461-d373-4439-9907-a0326e1032ef"),
+        "company_id": UUID("0d001055-2737-4c3b-adff-25d1cda5c831"),
         "company_name": "Reliance Industries",
         "document_name": "annual-report.pdf",
         "file_name": "annual-report.pdf",
@@ -128,7 +129,7 @@ def test_document_upload_returns_accepted_status(monkeypatch, tmp_path) -> None:
     app.dependency_overrides.clear()
     assert response.status_code == 202
     body = response.json()
-    assert body["companyId"] == "company-1"
+    assert body["companyId"] == "0d001055-2737-4c3b-adff-25d1cda5c831"
     assert body["status"] == "uploaded"
     assert body["stage"] == "stored"
     assert (settings.upload_dir / "company-1").exists()

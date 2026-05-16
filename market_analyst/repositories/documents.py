@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+from uuid import UUID
 from uuid import uuid4
 
 import psycopg
@@ -52,7 +54,7 @@ def list_documents(settings: Settings, company_id: str | None = None) -> list[di
                 """,
                 params,
             )
-            return [dict(row) for row in cur.fetchall()]
+            return [_serialize_document_row(row) for row in cur.fetchall()]
 
 
 def get_document(settings: Settings, document_id: str) -> dict[str, object] | None:
@@ -69,7 +71,7 @@ def get_document(settings: Settings, document_id: str) -> dict[str, object] | No
                 (document_id,),
             )
             row = cur.fetchone()
-    return dict(row) if row else None
+    return _serialize_document_row(row) if row else None
 
 
 def create_document(
@@ -170,3 +172,11 @@ def update_document_status(
     if updated is None:
         raise RuntimeError(f"Document not found after update: {document_id}")
     return updated
+
+
+def _serialize_document_row(row: dict[str, Any]) -> dict[str, object]:
+    serialized = dict(row)
+    for key in ("id", "company_id"):
+        if isinstance(serialized.get(key), UUID):
+            serialized[key] = str(serialized[key])
+    return serialized
