@@ -116,7 +116,8 @@ Notebook-specific requirements and acceptance criteria are defined in `docs/prod
 
 * **Workflow Page:** A one-user SaaS workspace lists every stock-analysis workflow with company name, ticker, run status, final supervisor rating, last updated time, and compact status indicators for the fundamental, technical, and news agents.
 * **New Workflow Flow:** A minimal stock form captures company name, ticker, optional sector, and a report/PDF placeholder. Submitting the form starts a supervisor workflow and routes the user into the run detail view.
-* **Run Detail Page:** The run detail view exposes the supervisor timeline, fixed initial prompt stage, fundamental agent stream, technical chart/analysis stream, news analysis stream, and final supervisor outcome.
+* **Run Detail Page:** The run detail view exposes the supervisor timeline, fixed initial prompt stage, vertically stacked collapsible fundamental, technical, and news agent streams, and the final supervisor outcome.
+* **Floating Chart Window:** Technical chart viewing is launched from a bottom-right floating chart control. Opening it shows the chart and technical answer in a small floating window without expanding the technical agent row.
 * **Streaming Adapter:** The first frontend scaffold uses mock streaming events with the same conceptual shape expected from the future backend: run started, agent started, agent chunk, chart ready, agent completed, supervisor started, supervisor chunk, supervisor completed, and error.
 * **Chat Pod:** A dedicated chat window is scoped to one completed stock run. Follow-up questions are answered by the supervisor against the existing worker outputs and stored workflow context.
 * **Integration Path:** The mock stream adapter will later be replaced by FastAPI streaming transport without rewriting the visual workflow, timeline, agent panels, supervisor panel, or chat pod.

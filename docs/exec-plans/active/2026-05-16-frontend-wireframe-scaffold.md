@@ -7,7 +7,7 @@ Add a clean Next.js/Tailwind/Lucide clickable scaffold for the market analyst wo
 ## Scope
 
 - Create a standalone `frontend/` Next.js app.
-- Add the one-user workflow history page, new workflow form, stock-run detail page, supervisor timeline, three agent panels, supervisor outcome panel, and contextual follow-up chat.
+- Add the one-user workflow history page, new workflow form, stock-run detail page, supervisor timeline, vertically stacked collapsible agent panels, floating technical chart window, supervisor outcome panel, and contextual follow-up chat.
 - Keep the first pass mock-driven through a local stream adapter that can later be replaced by FastAPI streaming transport.
 - Update `specs.md` with the workflow-history, streaming visibility, and chat-session behavior.
 
