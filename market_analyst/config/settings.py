@@ -42,6 +42,13 @@ class Settings:
     azure_openai_chat_deployment: str
     azure_openai_embedding_deployment: str
     tavily_api_key: str
+    frontend_app_url: str = "http://localhost:3000"
+    auth_session_cookie_name: str = "market_analyst_session"
+    auth_session_ttl_hours: int = 336
+    auth_session_secret: str = "market-analyst-dev-session-secret"
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_oauth_redirect_uri: str = "http://localhost:8000/api/auth/google/callback"
     vector_collection_name: str = "fundamental_report_chunks"
     upload_dir: Path = PROJECT_ROOT / "uploads" / "documents"
     cors_origins: tuple[str, ...] = ("http://localhost:3000", "http://127.0.0.1:3000")
@@ -120,6 +127,31 @@ class Settings:
         if not self.tavily_api_key:
             raise ValueError("Missing Tavily setting: TAVILY_API_KEY")
 
+    def require_auth(self) -> None:
+        missing = [
+            name
+            for name, value in {
+                "AUTH_SESSION_SECRET": self.auth_session_secret,
+            }.items()
+            if not value
+        ]
+        if missing:
+            raise ValueError(f"Missing auth settings: {', '.join(missing)}")
+
+    def require_google_oauth(self) -> None:
+        missing = [
+            name
+            for name, value in {
+                "GOOGLE_CLIENT_ID": self.google_client_id,
+                "GOOGLE_CLIENT_SECRET": self.google_client_secret,
+                "GOOGLE_OAUTH_REDIRECT_URI": self.google_oauth_redirect_uri,
+                "AUTH_SESSION_SECRET": self.auth_session_secret,
+            }.items()
+            if not value
+        ]
+        if missing:
+            raise ValueError(f"Missing Google OAuth settings: {', '.join(missing)}")
+
 
 def load_settings() -> Settings:
     load_env_file()
@@ -141,6 +173,13 @@ def load_settings() -> Settings:
         ),
         azure_openai_embedding_deployment=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", ""),
         tavily_api_key=os.getenv("TAVILY_API_KEY", ""),
+        frontend_app_url=os.getenv("FRONTEND_APP_URL", "http://localhost:3000").rstrip("/"),
+        auth_session_cookie_name=os.getenv("AUTH_SESSION_COOKIE_NAME", "market_analyst_session"),
+        auth_session_ttl_hours=int(os.getenv("AUTH_SESSION_TTL_HOURS", "336")),
+        auth_session_secret=os.getenv("AUTH_SESSION_SECRET", "market-analyst-dev-session-secret"),
+        google_client_id=os.getenv("GOOGLE_CLIENT_ID", ""),
+        google_client_secret=os.getenv("GOOGLE_CLIENT_SECRET", ""),
+        google_oauth_redirect_uri=os.getenv("GOOGLE_OAUTH_REDIRECT_URI", "http://localhost:8000/api/auth/google/callback"),
         vector_collection_name=os.getenv("VECTOR_COLLECTION_NAME", "fundamental_report_chunks"),
         upload_dir=Path(os.getenv("UPLOAD_DIR", str(PROJECT_ROOT / "uploads" / "documents"))),
         cors_origins=tuple(

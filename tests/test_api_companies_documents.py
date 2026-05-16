@@ -37,6 +37,20 @@ def _settings(tmp_path: Path) -> Settings:
     )
 
 
+def _authenticate() -> dict[str, object]:
+    return {
+        "id": "auth-user-1",
+        "first_name": "Ava",
+        "last_name": "Analyst",
+        "email": "ava@example.com",
+        "mobile_number": "9999999999",
+        "gender": "female",
+        "dob": NOW.date(),
+        "created_at": NOW,
+        "updated_at": NOW,
+    }
+
+
 def _company_row() -> dict[str, object]:
     return {
         "id": UUID("0d001055-2737-4c3b-adff-25d1cda5c831"),
@@ -137,6 +151,7 @@ def _supervisor_run_with_chart(chart_path: str) -> dict[str, object]:
 def test_company_create_and_list_routes(monkeypatch, tmp_path) -> None:
     settings = _settings(tmp_path)
     app.dependency_overrides[dependencies.get_settings] = lambda: settings
+    app.dependency_overrides[dependencies.require_authenticated_user] = _authenticate
     monkeypatch.setattr(companies_route, "list_companies", lambda passed_settings: [_company_row()])
     monkeypatch.setattr(
         companies_route,
@@ -172,6 +187,7 @@ def test_company_create_and_list_routes(monkeypatch, tmp_path) -> None:
 def test_document_upload_returns_accepted_status(monkeypatch, tmp_path) -> None:
     settings = _settings(tmp_path)
     app.dependency_overrides[dependencies.get_settings] = lambda: settings
+    app.dependency_overrides[dependencies.require_authenticated_user] = _authenticate
     monkeypatch.setattr(documents_route, "get_company", lambda passed_settings, company_id: _company_row())
     monkeypatch.setattr(
         documents_route,
@@ -201,6 +217,7 @@ def test_document_upload_returns_accepted_status(monkeypatch, tmp_path) -> None:
 def test_supervisor_run_create_returns_accepted_status(monkeypatch, tmp_path) -> None:
     settings = _settings(tmp_path)
     app.dependency_overrides[dependencies.get_settings] = lambda: settings
+    app.dependency_overrides[dependencies.require_authenticated_user] = _authenticate
     monkeypatch.setattr(supervisor_runs_route, "get_company", lambda passed_settings, company_id: _company_row())
     monkeypatch.setattr(
         supervisor_runs_route,
@@ -234,6 +251,7 @@ def test_supervisor_run_create_returns_accepted_status(monkeypatch, tmp_path) ->
 def test_supervisor_run_create_rejects_document_company_mismatch(monkeypatch, tmp_path) -> None:
     settings = _settings(tmp_path)
     app.dependency_overrides[dependencies.get_settings] = lambda: settings
+    app.dependency_overrides[dependencies.require_authenticated_user] = _authenticate
     monkeypatch.setattr(supervisor_runs_route, "get_company", lambda passed_settings, company_id: _company_row())
     monkeypatch.setattr(
         supervisor_runs_route,
@@ -258,6 +276,7 @@ def test_supervisor_run_create_rejects_document_company_mismatch(monkeypatch, tm
 def test_supervisor_run_chart_route_returns_file(monkeypatch, tmp_path) -> None:
     settings = _settings(tmp_path)
     app.dependency_overrides[dependencies.get_settings] = lambda: settings
+    app.dependency_overrides[dependencies.require_authenticated_user] = _authenticate
     chart_path = tmp_path / "chart.png"
     chart_path.write_bytes(b"png")
     monkeypatch.setattr(supervisor_runs_route, "PROJECT_ROOT", tmp_path)
@@ -278,6 +297,7 @@ def test_supervisor_run_chart_route_returns_file(monkeypatch, tmp_path) -> None:
 def test_supervisor_run_chat_returns_answer_and_history(monkeypatch, tmp_path) -> None:
     settings = _settings(tmp_path)
     app.dependency_overrides[dependencies.get_settings] = lambda: settings
+    app.dependency_overrides[dependencies.require_authenticated_user] = _authenticate
     monkeypatch.setattr(
         supervisor_runs_route,
         "get_supervisor_run",
@@ -325,6 +345,7 @@ def test_supervisor_run_chat_returns_answer_and_history(monkeypatch, tmp_path) -
 def test_supervisor_run_chat_requires_completed_run(monkeypatch, tmp_path) -> None:
     settings = _settings(tmp_path)
     app.dependency_overrides[dependencies.get_settings] = lambda: settings
+    app.dependency_overrides[dependencies.require_authenticated_user] = _authenticate
     monkeypatch.setattr(
         supervisor_runs_route,
         "get_supervisor_run",

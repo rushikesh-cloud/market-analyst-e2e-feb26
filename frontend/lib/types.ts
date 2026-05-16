@@ -153,6 +153,34 @@ export type ChatMessage = {
   content: string;
 };
 
+export type AuthUser = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  mobileNumber: string;
+  gender: string;
+  dob: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AuthLoginDraft = {
+  email: string;
+  password: string;
+};
+
+export type AuthRegisterDraft = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  mobileNumber: string;
+  gender: string;
+  dob: string;
+  password: string;
+  confirmPassword: string;
+};
+
 export type SupervisorRunChatRequest = {
   message: string;
   history: Array<Pick<ChatMessage, "role" | "content">>;

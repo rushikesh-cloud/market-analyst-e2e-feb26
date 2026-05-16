@@ -8,6 +8,7 @@ A full-stack, multi-agent system designed to provide 360-degree market intellige
 
 * **Frontend:** React.js (Next.js preferred), Tailwind CSS, Lucide Icons.
 * **Backend:** Python 3.11+, FastAPI.
+* **Authentication:** Local email/password auth plus Google OAuth with server-managed cookie sessions.
 * **Orchestration:** LangChain v0.1 (Agent Objects) + LangGraph (Stateful Workflows).
 * **LLMs:** Azure OpenAI (GPT-4o for complex reasoning, GPT-4o-mini for vision/summarization).
 * **Database:** PostgreSQL with `pgvector` for Hybrid Search (Vector + Full-Text).
@@ -84,6 +85,9 @@ We implement Hybrid Search using **Reciprocal Rank Fusion (RRF)** to combine:
 * **`Companies`:** ID, Ticker, Name, Overall_Score, Status (Processing/Completed).
 * **`Reports`:** Company_ID, Content (Full Text), Search_Vector (`tsvector`), Embedding (Vector), Page_Number, Metadata.
 * **`Analysis_Results`:** Company_ID, Fundamental_JSON, Technical_JSON, News_JSON, Supervisor_Summary.
+* **`Users`:** Operator profile records with canonical email identity.
+* **`Auth_Identities`:** Provider-linked login records for `local` credentials and `google` OAuth.
+* **`User_Sessions`:** Server-managed cookie sessions keyed by hashed opaque tokens.
 
 ---
 
@@ -120,12 +124,15 @@ Notebook-specific requirements and acceptance criteria are defined in `docs/prod
 * **Batch Processing:** Uses Python's `asyncio` to trigger the three agents in parallel within the LangGraph.
 * **Chat Engine:** A separate chat-facing supervisor agent exposes the three worker agents as callable tools and accepts bounded short-term message history for continuous follow-up questions.
 * **Technical V2 Evaluation Surface:** The dynamic technical-agent V2 stays as a separate service/notebook path until it reaches parity and is explicitly promoted to replace V1.
+* **Authentication API:** FastAPI exposes `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`, `GET /api/auth/google/start`, and `GET /api/auth/google/callback`. Local auth uses email/password with hashed passwords. Google auth auto-links to an existing local account when the verified Google email matches the stored email. Sessions are cookie-backed and stored server-side.
 * **FastAPI Company API:** The first backend integration slice exposes company creation, listing, and editing through FastAPI. Company creation captures company name, internal ticker, Yahoo Finance ticker, and sector, then persists the normalized company row in PostgreSQL. The edit path allows operators to update every mutable company-master field stored in the row: company name, internal ticker, Yahoo Finance ticker, sector, status, and overall score.
 * **FastAPI Document Injection API:** Document upload is asynchronous. The upload request stores the file under local `uploads/documents/`, creates a document row, and schedules ingestion in the background. Each ingestion stage is synced back to PostgreSQL so the frontend can poll status, stage, page count, processed pages, chunk count, vector ID count, report-row count, failure detail, and an ordered per-stage timeline with started/completed timestamps.
 * **FastAPI Supervisor Run API:** Supervisor workflows are now persisted backend runs. Creating a run requires selecting an existing company and one completed ingested document that belongs to that company. The API validates the company-document relationship, creates a run row, executes the supervisor workflow in the background, and stores per-agent status plus worker/supervisor JSON on the run row so the frontend can poll workflow history and run detail. During execution, the backend must route the company's normal/internal ticker into the fundamental worker and the company's Yahoo Finance ticker into the technical worker.
 
 ### 5.2. Frontend (React)
 
+* **Authentication Entry:** The app exposes standalone `/login` and `/register` pages outside the workflow shell. Register requires first name, last name, email, mobile number, gender, DOB, password, and confirm password. Both pages present Google auth as a first-class entry path.
+* **Protected Routes:** Workflow, companies, documents, agents, and run-detail routes are protected. Unauthenticated users are redirected to `/login`, and authenticated users are redirected away from auth pages into the protected workspace.
 * **Workflow Page:** A one-user SaaS workspace lists every stock-analysis workflow with company name, ticker, run status, final supervisor rating, last updated time, and compact status indicators for the fundamental, technical, and news agents.
 * **Companies Page:** A company-master page lists every defined company with company name, internal ticker, Yahoo Finance ticker, sector, status, overall score, and added timestamp. A plus action opens a compact form for adding company name, ticker, Yahoo Finance ticker, and sector before saving through the FastAPI company API. Each row also exposes an edit action that loads the company into the same form and allows changing all mutable stored fields: company name, internal ticker, Yahoo Finance ticker, sector, status, and overall score.
 * **Documents Page:** A document library page lists uploaded documents with document name, company name, file size, upload status, ingestion stage, page/chunk progress, and upload time. Clicking a document row opens a compact floating detail table below that row showing every ingestion stage, whether it is completed/running/upcoming/failed, and the relevant started/completed timestamps. A plus action opens a form where the user selects a company, chooses a document file, submits it to the FastAPI document API, and polls database-backed ingestion status.
@@ -135,7 +142,7 @@ Notebook-specific requirements and acceptance criteria are defined in `docs/prod
 * **Agents Page:** The previous hash-linked agents block is now a proper Next.js page that documents the backend-connected agent surfaces.
 * **Streaming Adapter:** The early frontend scaffold used mock streaming events with the same conceptual shape expected from the future backend. The current backend-connected workflow pages now poll persisted supervisor runs while live streaming remains a later transport enhancement.
 * **Chat Pod:** A dedicated chat window is scoped to one completed stock run. Follow-up questions are answered by the supervisor against the existing worker outputs and stored workflow context through a FastAPI chat turn endpoint backed by the existing supervisor chat service. Before supervisor completion, the chat pod must stay visually empty aside from a disabled-state message and must not display mock "result ready" content. On desktop run-detail layouts, the chat pod stays pinned on the right side while scrolling, its text composer stays anchored to the bottom edge of the pod, and each submitted follow-up must show a visible in-flight assistant placeholder until the backend answer returns.
-* **Integration Path:** Company, document, workflow history, run detail pages, and supervisor follow-up chat now use FastAPI transport. The current supervisor run transport is polling-based; future live token streaming can be layered on later without rewriting the visual workflow, timeline, agent panels, supervisor panel, or chat pod.
+* **Integration Path:** Auth, company, document, workflow history, run detail pages, and supervisor follow-up chat now use FastAPI transport. The current supervisor run transport is polling-based; future live token streaming can be layered on later without rewriting the visual workflow, timeline, agent panels, supervisor panel, or chat pod.
 
 ---
 

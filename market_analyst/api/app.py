@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from market_analyst.api.dependencies import get_settings
-from market_analyst.api.routes import companies, documents, supervisor_runs
+from market_analyst.api.dependencies import get_settings, require_authenticated_user
+from market_analyst.api.routes import auth, companies, documents, supervisor_runs
 
 
 def create_app() -> FastAPI:
@@ -17,9 +17,10 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    app.include_router(companies.router, prefix="/api")
-    app.include_router(documents.router, prefix="/api")
-    app.include_router(supervisor_runs.router, prefix="/api")
+    app.include_router(auth.router, prefix="/api")
+    app.include_router(companies.router, prefix="/api", dependencies=[Depends(require_authenticated_user)])
+    app.include_router(documents.router, prefix="/api", dependencies=[Depends(require_authenticated_user)])
+    app.include_router(supervisor_runs.router, prefix="/api", dependencies=[Depends(require_authenticated_user)])
 
     @app.get("/health")
     def health() -> dict[str, str]:

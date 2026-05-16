@@ -163,6 +163,48 @@ def _create_project_schema(conn: psycopg.Connection) -> None:
             )
             """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id uuid PRIMARY KEY,
+                first_name text NOT NULL,
+                last_name text NOT NULL,
+                email text UNIQUE NOT NULL,
+                mobile_number text NOT NULL,
+                gender text NOT NULL,
+                dob date NOT NULL,
+                created_at timestamptz NOT NULL DEFAULT now(),
+                updated_at timestamptz NOT NULL DEFAULT now()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS auth_identities (
+                id uuid PRIMARY KEY,
+                user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                provider text NOT NULL,
+                provider_subject text NOT NULL,
+                email text NOT NULL,
+                password_salt text,
+                password_hash text,
+                created_at timestamptz NOT NULL DEFAULT now(),
+                updated_at timestamptz NOT NULL DEFAULT now(),
+                UNIQUE(provider, provider_subject)
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_sessions (
+                id uuid PRIMARY KEY,
+                user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                token_hash text UNIQUE NOT NULL,
+                expires_at timestamptz NOT NULL,
+                created_at timestamptz NOT NULL DEFAULT now()
+            )
+            """
+        )
         cur.execute("ALTER TABLE reports ADD COLUMN IF NOT EXISTS document_id uuid REFERENCES documents(id)")
         cur.execute("ALTER TABLE reports ADD COLUMN IF NOT EXISTS document_name text")
         cur.execute("ALTER TABLE reports ADD COLUMN IF NOT EXISTS upload_status text")
@@ -181,6 +223,10 @@ def _create_project_schema(conn: psycopg.Connection) -> None:
         cur.execute("CREATE INDEX IF NOT EXISTS analysis_results_company_id_idx ON analysis_results(company_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS analysis_results_document_id_idx ON analysis_results(document_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS analysis_results_status_idx ON analysis_results(status)")
+        cur.execute("CREATE INDEX IF NOT EXISTS auth_identities_user_id_idx ON auth_identities(user_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS auth_identities_email_idx ON auth_identities(email)")
+        cur.execute("CREATE INDEX IF NOT EXISTS user_sessions_user_id_idx ON user_sessions(user_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS user_sessions_expires_at_idx ON user_sessions(expires_at)")
     conn.commit()
 
 
@@ -238,6 +284,35 @@ def _project_schema_ready(conn: psycopg.Connection) -> bool:
             "created_at",
             "updated_at",
         },
+        "users": {
+            "id",
+            "first_name",
+            "last_name",
+            "email",
+            "mobile_number",
+            "gender",
+            "dob",
+            "created_at",
+            "updated_at",
+        },
+        "auth_identities": {
+            "id",
+            "user_id",
+            "provider",
+            "provider_subject",
+            "email",
+            "password_salt",
+            "password_hash",
+            "created_at",
+            "updated_at",
+        },
+        "user_sessions": {
+            "id",
+            "user_id",
+            "token_hash",
+            "expires_at",
+            "created_at",
+        },
     }
     required_indexes = {
         "documents_company_id_idx",
@@ -248,6 +323,10 @@ def _project_schema_ready(conn: psycopg.Connection) -> bool:
         "analysis_results_company_id_idx",
         "analysis_results_document_id_idx",
         "analysis_results_status_idx",
+        "auth_identities_user_id_idx",
+        "auth_identities_email_idx",
+        "user_sessions_user_id_idx",
+        "user_sessions_expires_at_idx",
     }
 
     with conn.cursor(row_factory=dict_row) as cur:

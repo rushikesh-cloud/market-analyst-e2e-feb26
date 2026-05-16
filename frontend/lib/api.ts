@@ -1,4 +1,7 @@
 import type {
+  AuthLoginDraft,
+  AuthRegisterDraft,
+  AuthUser,
   Company,
   CompanyDraft,
   CompanyUpdateDraft,
@@ -8,10 +11,20 @@ import type {
   UploadedDocument,
 } from "./types";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
+    credentials: "include",
     ...init,
     headers: {
       ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
@@ -20,9 +33,43 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!response.ok) {
     const message = await response.text();
-    throw new Error(message || `API request failed with ${response.status}`);
+    throw new ApiError(response.status, message || `API request failed with ${response.status}`);
+  }
+  if (response.status === 204) {
+    return undefined as T;
   }
   return (await response.json()) as T;
+}
+
+export function buildGoogleAuthStartUrl(nextPath: string = "/"): string {
+  const suffix = `?next=${encodeURIComponent(nextPath.startsWith("/") ? nextPath : "/")}`;
+  return `${API_BASE_URL}/api/auth/google/start${suffix}`;
+}
+
+export function startGoogleAuth(nextPath: string = "/") {
+  window.location.assign(buildGoogleAuthStartUrl(nextPath));
+}
+
+export function registerUser(draft: AuthRegisterDraft): Promise<AuthUser> {
+  return request<AuthUser>("/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify(draft),
+  });
+}
+
+export function loginUser(draft: AuthLoginDraft): Promise<AuthUser> {
+  return request<AuthUser>("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify(draft),
+  });
+}
+
+export function getCurrentUser(): Promise<AuthUser> {
+  return request<AuthUser>("/api/auth/me");
+}
+
+export function logoutUser(): Promise<void> {
+  return request<void>("/api/auth/logout", { method: "POST" });
 }
 
 export function listCompanies(): Promise<Company[]> {

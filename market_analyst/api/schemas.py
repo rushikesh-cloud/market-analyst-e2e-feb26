@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal
 from uuid import UUID
 
@@ -48,6 +48,34 @@ class CompanyResponse(ApiModel):
     sector: str | None = None
     overall_score: float | None = Field(default=None, alias="overallScore")
     status: str
+    created_at: datetime = Field(alias="createdAt")
+    updated_at: datetime = Field(alias="updatedAt")
+
+
+class AuthRegisterRequest(ApiModel):
+    first_name: str = Field(alias="firstName")
+    last_name: str = Field(alias="lastName")
+    email: str
+    mobile_number: str = Field(alias="mobileNumber")
+    gender: str
+    dob: date
+    password: str
+    confirm_password: str = Field(alias="confirmPassword")
+
+
+class AuthLoginRequest(ApiModel):
+    email: str
+    password: str
+
+
+class AuthUserResponse(ApiModel):
+    id: UUID
+    first_name: str = Field(alias="firstName")
+    last_name: str = Field(alias="lastName")
+    email: str
+    mobile_number: str = Field(alias="mobileNumber")
+    gender: str
+    dob: date
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
 

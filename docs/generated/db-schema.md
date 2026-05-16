@@ -80,6 +80,46 @@ Current ingestion metadata must include `source_path`, `source_file`, `company_n
 | created_at | timestamptz | Creation timestamp |
 | updated_at | timestamptz | Last workflow status update timestamp |
 
+### users
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | uuid | Primary key |
+| first_name | text | Registered first name |
+| last_name | text | Registered last name |
+| email | text | Canonical login email; unique across all auth methods |
+| mobile_number | text | Required in the local registration flow |
+| gender | text | Required in the local registration flow |
+| dob | date | Required in the local registration flow |
+| created_at | timestamptz | Creation timestamp |
+| updated_at | timestamptz | Last update timestamp |
+
+### auth_identities
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | uuid | Primary key |
+| user_id | uuid | Foreign key to `users.id` |
+| provider | text | `local` or `google` |
+| provider_subject | text | Local email for `local`; Google subject for `google` |
+| email | text | Email associated with this auth identity |
+| password_salt | text | Base64 salt for local PBKDF2 credentials; null for Google |
+| password_hash | text | Base64 PBKDF2 hash for local credentials; null for Google |
+| created_at | timestamptz | Creation timestamp |
+| updated_at | timestamptz | Last update timestamp |
+
+One email maps to exactly one user account. When Google sign-in returns a verified email that already exists on a local account, the system auto-links the new Google identity to that existing user instead of creating a duplicate user row.
+
+### user_sessions
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| id | uuid | Primary key |
+| user_id | uuid | Foreign key to `users.id` |
+| token_hash | text | SHA-256 hash of the opaque cookie token |
+| expires_at | timestamptz | Session expiry |
+| created_at | timestamptz | Session creation timestamp |
+
 ## Retrieval Requirement
 
 The RAG pipeline must support hybrid search over `reports.search_vector` and the LangChain PGVector collection, using Reciprocal Rank Fusion to combine full-text and vector rankings.
@@ -100,6 +140,11 @@ Full-text search is a first-class schema requirement, not a later enhancement. T
 | analysis_results | B-tree index on `company_id` | Company-scoped workflow history |
 | analysis_results | B-tree index on `document_id` | Document-scoped workflow history |
 | analysis_results | B-tree index on `status` | Workflow queue/running/completed filters |
+| users | Unique index on `email` | Single operator account per email |
+| auth_identities | Unique index on `(provider, provider_subject)` | Stable provider login mapping |
+| auth_identities | B-tree index on `user_id` | Fast account-link lookup |
+| user_sessions | Unique index on `token_hash` | Session validation |
+| user_sessions | B-tree index on `expires_at` | Session cleanup and validation |
 
 ## Current LangChain Vector Store
 
