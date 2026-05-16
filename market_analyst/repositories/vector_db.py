@@ -141,14 +141,44 @@ def _create_project_schema(conn: psycopg.Connection) -> None:
             )
             """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS analysis_results (
+                id uuid PRIMARY KEY,
+                company_id uuid NOT NULL REFERENCES companies(id),
+                document_id uuid REFERENCES documents(id),
+                status text NOT NULL DEFAULT 'queued',
+                error_message text,
+                fundamental_status text NOT NULL DEFAULT 'idle',
+                technical_status text NOT NULL DEFAULT 'idle',
+                news_status text NOT NULL DEFAULT 'idle',
+                fundamental_json jsonb,
+                technical_json jsonb,
+                news_json jsonb,
+                supervisor_summary jsonb,
+                created_at timestamptz NOT NULL DEFAULT now(),
+                updated_at timestamptz NOT NULL DEFAULT now()
+            )
+            """
+        )
         cur.execute("ALTER TABLE reports ADD COLUMN IF NOT EXISTS document_id uuid REFERENCES documents(id)")
         cur.execute("ALTER TABLE reports ADD COLUMN IF NOT EXISTS document_name text")
         cur.execute("ALTER TABLE reports ADD COLUMN IF NOT EXISTS upload_status text")
+        cur.execute("ALTER TABLE analysis_results ADD COLUMN IF NOT EXISTS document_id uuid REFERENCES documents(id)")
+        cur.execute("ALTER TABLE analysis_results ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'queued'")
+        cur.execute("ALTER TABLE analysis_results ADD COLUMN IF NOT EXISTS error_message text")
+        cur.execute("ALTER TABLE analysis_results ADD COLUMN IF NOT EXISTS fundamental_status text NOT NULL DEFAULT 'idle'")
+        cur.execute("ALTER TABLE analysis_results ADD COLUMN IF NOT EXISTS technical_status text NOT NULL DEFAULT 'idle'")
+        cur.execute("ALTER TABLE analysis_results ADD COLUMN IF NOT EXISTS news_status text NOT NULL DEFAULT 'idle'")
+        cur.execute("ALTER TABLE analysis_results ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now()")
         cur.execute("CREATE INDEX IF NOT EXISTS documents_company_id_idx ON documents(company_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS documents_status_idx ON documents(status)")
         cur.execute("CREATE INDEX IF NOT EXISTS reports_company_id_idx ON reports(company_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS reports_document_id_idx ON reports(document_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS reports_search_vector_idx ON reports USING GIN(search_vector)")
+        cur.execute("CREATE INDEX IF NOT EXISTS analysis_results_company_id_idx ON analysis_results(company_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS analysis_results_document_id_idx ON analysis_results(document_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS analysis_results_status_idx ON analysis_results(status)")
     conn.commit()
 
 
@@ -189,6 +219,22 @@ def _project_schema_ready(conn: psycopg.Connection) -> bool:
             "metadata",
             "created_at",
         },
+        "analysis_results": {
+            "id",
+            "company_id",
+            "document_id",
+            "status",
+            "error_message",
+            "fundamental_status",
+            "technical_status",
+            "news_status",
+            "fundamental_json",
+            "technical_json",
+            "news_json",
+            "supervisor_summary",
+            "created_at",
+            "updated_at",
+        },
     }
     required_indexes = {
         "documents_company_id_idx",
@@ -196,6 +242,9 @@ def _project_schema_ready(conn: psycopg.Connection) -> bool:
         "reports_company_id_idx",
         "reports_document_id_idx",
         "reports_search_vector_idx",
+        "analysis_results_company_id_idx",
+        "analysis_results_document_id_idx",
+        "analysis_results_status_idx",
     }
 
     with conn.cursor(row_factory=dict_row) as cur:
@@ -317,6 +366,7 @@ def full_text_search(
     settings: Settings,
     query: str,
     ticker: str | None = None,
+    document_id: str | None = None,
     limit: int = 5,
 ) -> list[dict[str, object]]:
     settings.require_database()
@@ -325,6 +375,9 @@ def full_text_search(
     if ticker:
         where.append("companies.ticker = %s")
         params.append(ticker)
+    if document_id:
+        where.append("reports.document_id = %s")
+        params.append(document_id)
     params.append(limit)
 
     sql = f"""
@@ -363,11 +416,18 @@ def vector_search(
     settings: Settings,
     query: str,
     ticker: str | None = None,
+    document_id: str | None = None,
     limit: int = 5,
 ) -> list[dict[str, object]]:
     embeddings = build_embeddings(settings)
     vector_store = build_vector_store(settings, embeddings, reset_collection=False)
-    filter_arg = {"ticker": ticker} if ticker else None
+    filter_arg: dict[str, object] | None = None
+    if ticker or document_id:
+        filter_arg = {}
+        if ticker:
+            filter_arg["ticker"] = ticker
+        if document_id:
+            filter_arg["document_id"] = document_id
     results = vector_store.similarity_search_with_score(query=query, k=limit, filter=filter_arg)
     return [
         {
@@ -386,12 +446,25 @@ def hybrid_search(
     settings: Settings,
     query: str,
     ticker: str | None = None,
+    document_id: str | None = None,
     limit: int = 5,
     candidate_limit: int = 20,
     rrf_k: int = 60,
 ) -> list[dict[str, object]]:
-    full_text_results = full_text_search(settings, query=query, ticker=ticker, limit=candidate_limit)
-    vector_results = vector_search(settings, query=query, ticker=ticker, limit=candidate_limit)
+    full_text_results = full_text_search(
+        settings,
+        query=query,
+        ticker=ticker,
+        document_id=document_id,
+        limit=candidate_limit,
+    )
+    vector_results = vector_search(
+        settings,
+        query=query,
+        ticker=ticker,
+        document_id=document_id,
+        limit=candidate_limit,
+    )
 
     fused: dict[str, dict[str, object]] = {}
     for rank, row in enumerate(full_text_results, start=1):

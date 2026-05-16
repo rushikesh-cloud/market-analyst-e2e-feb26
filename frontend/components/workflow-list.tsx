@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { CheckCircle2, Circle, Loader2, Search } from "lucide-react";
-import type { AgentKey, AgentStatus, WorkflowRun } from "@/lib/types";
+import type { AgentKey, AgentStatus, SupervisorRun } from "@/lib/types";
 
 const agentLabels: Record<AgentKey, string> = {
   fundamental: "F",
@@ -13,13 +13,15 @@ const agentLabels: Record<AgentKey, string> = {
 function statusClass(status: AgentStatus) {
   if (status === "completed") return "border-emerald-200 bg-emerald-50 text-emerald-700";
   if (status === "running") return "border-blue-200 bg-blue-50 text-blue-700";
+  if (status === "failed") return "border-red-200 bg-red-50 text-red-700";
   if (status === "error") return "border-red-200 bg-red-50 text-red-700";
   return "border-line bg-slate-50 text-muted";
 }
 
-function StatusIcon({ status }: { status: WorkflowRun["status"] }) {
+function StatusIcon({ status }: { status: SupervisorRun["status"] }) {
   if (status === "completed") return <CheckCircle2 size={16} className="text-emerald-600" />;
   if (status === "running") return <Loader2 size={16} className="animate-spin text-blue-600" />;
+  if (status === "failed") return <Circle size={16} className="text-red-600" />;
   return <Circle size={16} className="text-muted" />;
 }
 
@@ -28,12 +30,12 @@ export function WorkflowList({
   query,
   onQueryChange,
 }: {
-  workflows: WorkflowRun[];
+  workflows: SupervisorRun[];
   query: string;
   onQueryChange: (query: string) => void;
 }) {
   const visible = workflows.filter((workflow) => {
-    const haystack = `${workflow.companyName} ${workflow.ticker} ${workflow.sector ?? ""}`.toLowerCase();
+    const haystack = `${workflow.companyName} ${workflow.ticker} ${workflow.sector ?? ""} ${workflow.documentName}`.toLowerCase();
     return haystack.includes(query.toLowerCase());
   });
 
@@ -64,12 +66,13 @@ export function WorkflowList({
                 <div className="rounded-md border border-line px-1.5 py-0.5 text-[11px] font-medium text-muted">{workflow.ticker}</div>
               </div>
               <div className="mt-1 truncate text-xs text-muted">{workflow.sector ?? "Sector pending"} · {workflow.updatedAt}</div>
+              <div className="mt-1 truncate text-[11px] text-muted">{workflow.documentName}</div>
             </div>
             <div className="flex items-center gap-1.5">
               {(Object.keys(agentLabels) as AgentKey[]).map((agent) => (
                 <span
                   key={agent}
-                  className={`flex h-7 w-7 items-center justify-center rounded-full border text-[11px] font-semibold ${statusClass(workflow.agentStatus[agent])}`}
+                  className={`flex h-7 w-7 items-center justify-center rounded-full border text-[11px] font-semibold ${statusClass(agentStatusForRun(workflow, agent))}`}
                   title={agent}
                 >
                   {agentLabels[agent]}
@@ -87,4 +90,10 @@ export function WorkflowList({
       </div>
     </section>
   );
+}
+
+function agentStatusForRun(run: SupervisorRun, agent: AgentKey): AgentStatus {
+  if (agent === "fundamental") return run.fundamentalStatus;
+  if (agent === "technical") return run.technicalStatus;
+  return run.newsStatus;
 }

@@ -10,7 +10,7 @@ const navItems = [
   { label: "Companies", href: "/companies", icon: Building2 },
   { label: "Documents", href: "/documents", icon: FileText },
   { label: "New", href: "/?new=1", icon: Plus },
-  { label: "Agents", href: "/#agents", icon: Bot },
+  { label: "Agents", href: "/agents", icon: Bot },
   { label: "Settings", href: "/#settings", icon: Settings },
 ];
 
@@ -55,7 +55,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="hidden rounded-full border border-line px-2.5 py-1 text-[11px] font-medium text-muted sm:inline-flex">Mock stream</span>
+            <span className="hidden rounded-full border border-line px-2.5 py-1 text-[11px] font-medium text-muted sm:inline-flex">Supervisor API</span>
             <div className="h-8 w-8 rounded-full border border-line bg-slate-50" aria-label="User profile" />
           </div>
         </div>

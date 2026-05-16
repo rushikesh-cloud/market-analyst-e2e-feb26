@@ -1,8 +1,32 @@
 import type { LucideIcon } from "lucide-react";
 
 export type AgentKey = "fundamental" | "technical" | "news";
-export type RunStatus = "queued" | "running" | "completed" | "error";
-export type AgentStatus = "idle" | "running" | "completed" | "error";
+export type RunStatus = "queued" | "running" | "completed" | "failed" | "error";
+export type AgentStatus = "idle" | "running" | "completed" | "failed" | "error";
+
+export type SupervisorRun = {
+  id: string;
+  companyId: string;
+  companyName: string;
+  ticker: string;
+  yahooFinanceTicker?: string | null;
+  sector?: string;
+  documentId: string;
+  documentName: string;
+  documentStatus: string;
+  status: RunStatus;
+  errorMessage?: string | null;
+  finalRating?: number;
+  fundamentalStatus: AgentStatus;
+  technicalStatus: AgentStatus;
+  newsStatus: AgentStatus;
+  fundamental?: WorkerResult | null;
+  technical?: WorkerResult | null;
+  news?: WorkerResult | null;
+  supervisor?: SupervisorResult | null;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export type WorkflowRun = {
   id: string;
@@ -16,9 +40,8 @@ export type WorkflowRun = {
 };
 
 export type NewWorkflowDraft = {
-  companyName: string;
-  ticker: string;
-  sector?: string;
+  companyId: string;
+  documentId: string;
 };
 
 export type Company = {
@@ -81,6 +104,25 @@ export type AgentOutput = {
   evidence: string[];
   details: Record<string, string | string[]>;
   status: AgentStatus;
+};
+
+export type WorkerResult = {
+  answer?: string;
+  rating?: number | null;
+  question?: string;
+  ticker?: string | null;
+  company_name?: string;
+  sector?: string | null;
+  chart_path?: string | null;
+  [key: string]: unknown;
+};
+
+export type SupervisorResult = {
+  final_rating?: number;
+  summary?: string;
+  components?: Array<{ name: string; rating?: number | null; weight: number; rationale: string }>;
+  metadata?: { weights?: Partial<Record<AgentKey, number>> };
+  [key: string]: unknown;
 };
 
 export type SupervisorOutput = {

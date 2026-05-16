@@ -44,6 +44,9 @@ def run_document_ingestion(settings: Settings, document_id: str) -> None:
         )
 
         chunks = split_markdown_report(markdown_report)
+        for chunk in chunks:
+            chunk.metadata["document_id"] = document_id
+            chunk.metadata["document_name"] = str(document["document_name"])
         update_document_status(
             settings,
             document_id,

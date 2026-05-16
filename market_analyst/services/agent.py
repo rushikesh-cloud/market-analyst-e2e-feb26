@@ -37,6 +37,7 @@ def build_market_analysis_agent(
     retrieval_limit: int = 5,
     system_prompt: str = DEFAULT_MARKET_AGENT_PROMPT,
     ticker_transform: Callable[[str | None], str | None] | None = None,
+    document_id: str | None = None,
 ):
     """Build the notebook-facing LangChain agent object."""
 
@@ -48,7 +49,13 @@ def build_market_analysis_agent(
 
         if ticker_transform:
             ticker = ticker_transform(ticker)
-        results = hybrid_search(settings, query=query, ticker=ticker, limit=retrieval_limit)
+        results = hybrid_search(
+            settings,
+            query=query,
+            ticker=ticker,
+            document_id=document_id,
+            limit=retrieval_limit,
+        )
         return format_retrieval_results(results)
 
     return create_agent(

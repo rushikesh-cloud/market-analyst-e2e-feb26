@@ -66,11 +66,18 @@ Current ingestion metadata must include `source_path`, `source_file`, `company_n
 | --- | --- | --- |
 | id | uuid | Primary key |
 | company_id | uuid | Foreign key to `companies.id` |
+| document_id | uuid | Foreign key to `documents.id`; identifies the selected document for this supervisor workflow |
+| status | text | Run lifecycle state: `queued`, `running`, `completed`, or `failed` |
+| error_message | text | Failure detail for failed supervisor runs |
+| fundamental_status | text | Fundamental worker state for workflow polling |
+| technical_status | text | Technical worker state for workflow polling |
+| news_status | text | News worker state for workflow polling |
 | fundamental_json | jsonb | Fundamental agent output |
 | technical_json | jsonb | Technical agent output |
 | news_json | jsonb | News agent output |
 | supervisor_summary | jsonb | Final supervisor report, component ratings, and weighting |
 | created_at | timestamptz | Creation timestamp |
+| updated_at | timestamptz | Last workflow status update timestamp |
 
 ## Retrieval Requirement
 
@@ -89,6 +96,9 @@ Full-text search is a first-class schema requirement, not a later enhancement. T
 | documents | B-tree index on `company_id` | Company-scoped document listing |
 | documents | B-tree index on `status` | Polling and operational status views |
 | companies | Unique index on `ticker` | Stable company lookup |
+| analysis_results | B-tree index on `company_id` | Company-scoped workflow history |
+| analysis_results | B-tree index on `document_id` | Document-scoped workflow history |
+| analysis_results | B-tree index on `status` | Workflow queue/running/completed filters |
 
 ## Current LangChain Vector Store
 

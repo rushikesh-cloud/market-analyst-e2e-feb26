@@ -42,6 +42,7 @@ def build_fundamental_analysis_agent(
     *,
     retrieval_limit: int = 5,
     system_prompt: str = DEFAULT_FUNDAMENTAL_AGENT_PROMPT,
+    document_id: str | None = None,
 ) -> Any:
     """Build the notebook-facing RAG fundamental worker agent."""
 
@@ -50,6 +51,7 @@ def build_fundamental_analysis_agent(
         retrieval_limit=retrieval_limit,
         system_prompt=system_prompt,
         ticker_transform=normalize_fundamental_ticker,
+        document_id=document_id,
     )
 
 
@@ -59,7 +61,11 @@ def run_fundamental_analysis_agent(
 ) -> FundamentalAnalysisResult:
     question = request.question or DEFAULT_FUNDAMENTAL_ANALYSIS_QUESTION
     normalized_ticker = normalize_fundamental_ticker(request.ticker)
-    agent = build_fundamental_analysis_agent(settings, retrieval_limit=request.retrieval_limit)
+    agent = build_fundamental_analysis_agent(
+        settings,
+        retrieval_limit=request.retrieval_limit,
+        document_id=request.document_id,
+    )
     prompt = build_fundamental_analysis_prompt(request=request, question=question)
     result = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
     answer = extract_final_message_content(result)

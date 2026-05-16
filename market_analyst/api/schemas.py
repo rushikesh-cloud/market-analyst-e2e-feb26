@@ -61,3 +61,32 @@ class DocumentResponse(ApiModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     uploaded_at: datetime = Field(alias="uploadedAt")
     updated_at: datetime = Field(alias="updatedAt")
+
+
+class SupervisorRunCreateRequest(ApiModel):
+    company_id: UUID = Field(alias="companyId")
+    document_id: UUID = Field(alias="documentId")
+
+
+class SupervisorRunResponse(ApiModel):
+    id: UUID
+    company_id: UUID = Field(alias="companyId")
+    company_name: str = Field(alias="companyName")
+    ticker: str
+    yahoo_finance_ticker: str | None = Field(default=None, alias="yahooFinanceTicker")
+    sector: str | None = None
+    document_id: UUID = Field(alias="documentId")
+    document_name: str = Field(alias="documentName")
+    document_status: str = Field(alias="documentStatus")
+    status: Literal["queued", "running", "completed", "failed"]
+    error_message: str | None = Field(default=None, alias="errorMessage")
+    final_rating: int | None = Field(default=None, alias="finalRating")
+    fundamental_status: str = Field(alias="fundamentalStatus")
+    technical_status: str = Field(alias="technicalStatus")
+    news_status: str = Field(alias="newsStatus")
+    fundamental: dict[str, Any] | None = None
+    technical: dict[str, Any] | None = None
+    news: dict[str, Any] | None = None
+    supervisor: dict[str, Any] | None = None
+    created_at: datetime = Field(alias="createdAt")
+    updated_at: datetime = Field(alias="updatedAt")

@@ -8,9 +8,10 @@ import { ChatPanel } from "@/components/chat-panel";
 import { FloatingChartWindow } from "@/components/floating-chart-window";
 import { RunTimeline } from "@/components/run-timeline";
 import { SupervisorPanel } from "@/components/supervisor-panel";
-import { baseAgentOutputs, mockChatMessages, mockWorkflows, timelineSteps } from "@/lib/mock-data";
-import { subscribeToMockRun } from "@/lib/mock-stream";
-import type { AgentKey, AgentOutput, AgentStatus, RunEvent, SupervisorOutput, WorkflowRun } from "@/lib/types";
+import { getSupervisorRun } from "@/lib/api";
+import { baseAgentOutputs, mockChatMessages, timelineSteps } from "@/lib/mock-data";
+import type { AgentKey, AgentOutput, SupervisorOutput, SupervisorResult, SupervisorRun, WorkerResult } from "@/lib/types";
+
 
 function cloneAgentOutputs(): Record<AgentKey, AgentOutput> {
   return {
@@ -26,121 +27,77 @@ const initialSupervisor: SupervisorOutput = {
   weights: { fundamental: 0.45, technical: 0.3, news: 0.25 },
 };
 
-function fallbackRun(id: string): WorkflowRun {
-  return {
-    id,
-    companyName: "Tata Consultancy Services",
-    ticker: "TCS.NS",
-    sector: "IT Services",
-    status: "running",
-    updatedAt: "Now",
-    agentStatus: { fundamental: "idle", technical: "idle", news: "idle" },
-  };
-}
-
-function nextAgentState(current: Record<AgentKey, AgentOutput>, agent: AgentKey, status: AgentStatus, patch: Partial<AgentOutput> = {}) {
-  return {
-    ...current,
-    [agent]: {
-      ...current[agent],
-      ...patch,
-      status,
-    },
-  };
-}
-
 export function RunWorkspace({ runId }: { runId: string }) {
-  const [run, setRun] = useState<WorkflowRun>(() => mockWorkflows.find((item) => item.id === runId) ?? fallbackRun(runId));
+  const [run, setRun] = useState<SupervisorRun | null>(null);
   const [agents, setAgents] = useState<Record<AgentKey, AgentOutput>>(() => cloneAgentOutputs());
   const [supervisor, setSupervisor] = useState<SupervisorOutput>(initialSupervisor);
-  const [chartReady, setChartReady] = useState(false);
-  const [startedAt] = useState(() => Date.now());
+  const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
-    const saved = window.sessionStorage.getItem("market-analyst:new-run");
-    if (!saved) return;
-    try {
-      const draft = JSON.parse(saved) as Partial<WorkflowRun>;
-      if (draft.id === runId) {
-        setRun((current) => ({
-          ...current,
-          companyName: String(draft.companyName ?? current.companyName),
-          ticker: String(draft.ticker ?? current.ticker),
-          sector: String(draft.sector ?? current.sector ?? ""),
-        }));
-      }
-    } catch {
-      window.sessionStorage.removeItem("market-analyst:new-run");
-    }
+    let isMounted = true;
+
+    const loadRun = () =>
+      getSupervisorRun(runId)
+        .then((item) => {
+          if (!isMounted) return;
+          setRun(item);
+          setAgents(buildAgentOutputs(item));
+          setSupervisor(buildSupervisorOutput(item));
+          setError(null);
+        })
+        .catch((apiError: unknown) => {
+          if (isMounted) setError(apiError instanceof Error ? apiError.message : "Unable to load supervisor run");
+        });
+
+    loadRun();
+    const intervalId = window.setInterval(loadRun, 4000);
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
   }, [runId]);
 
   useEffect(() => {
-    const interval = window.setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
-    return () => window.clearInterval(interval);
-  }, [startedAt]);
-
-  useEffect(() => {
-    setAgents(cloneAgentOutputs());
-    setSupervisor(initialSupervisor);
-    setChartReady(false);
-    return subscribeToMockRun((event) => applyEvent(event));
-  }, [runId]);
-
-  function applyEvent(event: RunEvent) {
-    if (event.type === "run_started") {
-      setRun((current) => ({ ...current, status: "running" }));
-      return;
-    }
-    if (event.type === "agent_started") {
-      setAgents((current) => nextAgentState(current, event.agent, "running"));
-      setRun((current) => ({ ...current, agentStatus: { ...current.agentStatus, [event.agent]: "running" } }));
-      return;
-    }
-    if (event.type === "agent_chunk") {
-      setAgents((current) =>
-        nextAgentState(current, event.agent, "running", {
-          stream: `${current[event.agent].stream}${event.content}`,
-        }),
-      );
-      return;
-    }
-    if (event.type === "chart_ready") {
-      setChartReady(true);
-      return;
-    }
-    if (event.type === "agent_completed") {
-      setAgents((current) => nextAgentState(current, event.agent, "completed", { rating: event.rating }));
-      setRun((current) => ({ ...current, agentStatus: { ...current.agentStatus, [event.agent]: "completed" } }));
-      return;
-    }
-    if (event.type === "supervisor_started") {
-      setSupervisor((current) => ({ ...current, status: "running" }));
-      return;
-    }
-    if (event.type === "supervisor_chunk") {
-      setSupervisor((current) => ({ ...current, status: "running", summary: `${current.summary}${event.content}` }));
-      return;
-    }
-    if (event.type === "supervisor_completed") {
-      setSupervisor((current) => ({ ...current, status: "completed", rating: event.rating }));
-      setRun((current) => ({ ...current, status: "completed", finalRating: event.rating, updatedAt: "Just now" }));
-    }
-  }
+    if (!run) return;
+    const startedAt = new Date(run.createdAt).getTime();
+    if (Number.isNaN(startedAt)) return;
+    const intervalId = window.setInterval(() => {
+      setElapsed(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
+    }, 1000);
+    setElapsed(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
+    return () => window.clearInterval(intervalId);
+  }, [run]);
 
   const steps = useMemo(
     () =>
       timelineSteps.map((step) => {
-        if (step.id === "fundamental" || step.id === "technical" || step.id === "news") {
-          return { ...step, status: agents[step.id].status };
+        if (step.id === "fundamental") {
+          return { ...step, status: run?.fundamentalStatus ?? "idle" };
+        }
+        if (step.id === "technical") {
+          return { ...step, status: run?.technicalStatus ?? "idle" };
+        }
+        if (step.id === "news") {
+          return { ...step, status: run?.newsStatus ?? "idle" };
         }
         if (step.id === "supervisor") {
-          return { ...step, status: supervisor.status };
+          return { ...step, status: normalizeAgentStatus(run?.status) };
         }
         return step;
       }),
-    [agents, supervisor.status],
+    [run],
   );
+
+  if (error) {
+    return <div className="p-4 text-sm text-red-700 md:p-6">{error}</div>;
+  }
+
+  if (!run) {
+    return <div className="p-4 text-sm text-muted md:p-6">Loading supervisor run...</div>;
+  }
+
+  const chartReady = Boolean(run.technical?.chart_path);
 
   return (
     <div className="grid gap-5 p-4 md:p-6">
@@ -152,13 +109,14 @@ export function RunWorkspace({ runId }: { runId: string }) {
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-2">
               <h1 className="truncate text-lg font-semibold">{run.companyName}</h1>
-              <span className="rounded-md border border-line bg-panel px-2 py-1 text-[11px] font-semibold text-muted">{run.ticker}</span>
+              <span className="rounded-md border border-line bg-panel px-2 py-1 text-[11px] font-semibold text-muted">{run.yahooFinanceTicker ?? run.ticker}</span>
             </div>
             <div className="mt-1 text-xs text-muted">{run.sector ?? "Sector pending"} · {run.status} · {elapsed}s</div>
+            <div className="mt-1 truncate text-[11px] text-muted">{run.documentName}</div>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex h-9 items-center gap-2 rounded-lg border border-line bg-panel px-3 text-xs font-semibold">
+          <button className="flex h-9 items-center gap-2 rounded-lg border border-line bg-panel px-3 text-xs font-semibold" disabled>
             <RotateCw size={14} />
             Rerun
           </button>
@@ -168,6 +126,8 @@ export function RunWorkspace({ runId }: { runId: string }) {
           <div className="flex h-9 w-14 items-center justify-center rounded-lg bg-ink text-sm font-semibold text-white">{run.finalRating ?? "--"}</div>
         </div>
       </div>
+
+      {run.errorMessage ? <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{run.errorMessage}</div> : null}
 
       <RunTimeline steps={steps} />
 
@@ -180,9 +140,91 @@ export function RunWorkspace({ runId }: { runId: string }) {
           </div>
           <SupervisorPanel output={supervisor} />
         </div>
-        <ChatPanel enabled={supervisor.status === "completed"} initialMessages={mockChatMessages} />
+        <ChatPanel enabled={run.status === "completed"} initialMessages={mockChatMessages} />
       </div>
       <FloatingChartWindow output={agents.technical} chartReady={chartReady} />
     </div>
   );
+}
+
+function buildAgentOutputs(run: SupervisorRun): Record<AgentKey, AgentOutput> {
+  const outputs = cloneAgentOutputs();
+  outputs.fundamental = hydrateAgentOutput(outputs.fundamental, run.fundamental, run.fundamentalStatus);
+  outputs.technical = hydrateAgentOutput(outputs.technical, run.technical, run.technicalStatus);
+  outputs.news = hydrateAgentOutput(outputs.news, run.news, run.newsStatus);
+  return outputs;
+}
+
+function hydrateAgentOutput(base: AgentOutput, worker: WorkerResult | null | undefined, status: string): AgentOutput {
+  if (!worker) {
+    return {
+      ...base,
+      status: normalizeAgentStatus(status),
+      stream: status === "running" ? "Worker is executing on the backend." : base.stream,
+    };
+  }
+
+  return {
+    ...base,
+    rating: typeof worker.rating === "number" ? worker.rating : undefined,
+    stream: typeof worker.answer === "string" ? worker.answer : base.stream,
+    evidence: extractEvidence(worker),
+    details: extractDetails(worker),
+    status: normalizeAgentStatus(status),
+  };
+}
+
+function buildSupervisorOutput(run: SupervisorRun): SupervisorOutput {
+  const supervisor = (run.supervisor ?? {}) as SupervisorResult;
+  const weights = supervisor.metadata?.weights ?? {};
+  return {
+    rating: typeof supervisor.final_rating === "number" ? supervisor.final_rating : run.finalRating,
+    status: normalizeAgentStatus(run.status),
+    summary: typeof supervisor.summary === "string" ? supervisor.summary : run.status === "running" ? "Supervisor workflow is still executing." : "",
+    weights: {
+      fundamental: weights.fundamental ?? 0.45,
+      technical: weights.technical ?? 0.3,
+      news: weights.news ?? 0.25,
+    },
+  };
+}
+
+function extractEvidence(worker: WorkerResult): string[] {
+  const entries = Object.entries(worker)
+    .filter(([key, value]) => Array.isArray(value) && value.length > 0 && !["sources"].includes(key))
+    .flatMap(([, value]) => (value as unknown[]).map((item) => String(item)));
+  return entries.length > 0 ? entries.slice(0, 6) : ["Backend result captured for this worker."];
+}
+
+function extractDetails(worker: WorkerResult): Record<string, string | string[]> {
+  const details: Record<string, string | string[]> = {};
+  Object.entries(worker).forEach(([key, value]) => {
+    if (["answer", "rating", "question", "chart_path", "artifact"].includes(key) || value == null) return;
+    if (Array.isArray(value)) {
+      details[prettyLabel(key)] = value.map((item) => String(item));
+      return;
+    }
+    if (typeof value === "object") {
+      details[prettyLabel(key)] = JSON.stringify(value);
+      return;
+    }
+    details[prettyLabel(key)] = String(value);
+  });
+  if (Object.keys(details).length === 0 && typeof worker.question === "string") {
+    details.Question = worker.question;
+  }
+  return details;
+}
+
+function prettyLabel(value: string): string {
+  return value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function normalizeAgentStatus(status: string | undefined): AgentOutput["status"] {
+  if (status === "queued") return "idle";
+  if (status === "failed") return "error";
+  if (status === "running" || status === "completed" || status === "error" || status === "idle") return status;
+  return "idle";
 }

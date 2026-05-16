@@ -7,6 +7,7 @@ from dataclasses import dataclass
 class FundamentalAnalysisRequest:
     company_name: str
     ticker: str | None = None
+    document_id: str | None = None
     question: str | None = None
     retrieval_limit: int = 5
 

@@ -10,6 +10,7 @@ from market_analyst.api import dependencies
 from market_analyst.api.app import app
 from market_analyst.api.routes import companies as companies_route
 from market_analyst.api.routes import documents as documents_route
+from market_analyst.api.routes import supervisor_runs as supervisor_runs_route
 from market_analyst.config.settings import Settings
 
 
@@ -69,6 +70,32 @@ def _document_row(source_path: str) -> dict[str, object]:
         "error_message": None,
         "metadata": {},
         "uploaded_at": NOW,
+        "updated_at": NOW,
+    }
+
+
+def _supervisor_run_row() -> dict[str, object]:
+    return {
+        "id": UUID("351f4fd0-d620-4fb3-9ff0-5449283310cd"),
+        "company_id": UUID("0d001055-2737-4c3b-adff-25d1cda5c831"),
+        "company_name": "Reliance Industries",
+        "ticker": "RELIANCE",
+        "yahoo_finance_ticker": "RELIANCE.NS",
+        "sector": "Energy",
+        "document_id": UUID("75961461-d373-4439-9907-a0326e1032ef"),
+        "document_name": "annual-report.pdf",
+        "document_status": "completed",
+        "status": "queued",
+        "error_message": None,
+        "final_rating": None,
+        "fundamental_status": "idle",
+        "technical_status": "idle",
+        "news_status": "idle",
+        "fundamental_json": None,
+        "technical_json": None,
+        "news_json": None,
+        "supervisor_summary": None,
+        "created_at": NOW,
         "updated_at": NOW,
     }
 
@@ -133,3 +160,60 @@ def test_document_upload_returns_accepted_status(monkeypatch, tmp_path) -> None:
     assert body["status"] == "uploaded"
     assert body["stage"] == "stored"
     assert (settings.upload_dir / "company-1").exists()
+
+
+def test_supervisor_run_create_returns_accepted_status(monkeypatch, tmp_path) -> None:
+    settings = _settings(tmp_path)
+    app.dependency_overrides[dependencies.get_settings] = lambda: settings
+    monkeypatch.setattr(supervisor_runs_route, "get_company", lambda passed_settings, company_id: _company_row())
+    monkeypatch.setattr(
+        supervisor_runs_route,
+        "get_document",
+        lambda passed_settings, document_id: {**_document_row("uploads/company-1/annual-report.pdf"), "status": "completed"},
+    )
+    monkeypatch.setattr(
+        supervisor_runs_route,
+        "create_supervisor_run",
+        lambda passed_settings, **kwargs: _supervisor_run_row(),
+    )
+    monkeypatch.setattr(supervisor_runs_route, "execute_supervisor_run", lambda passed_settings, run_id: None)
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/supervisor-runs",
+        json={
+            "companyId": "0d001055-2737-4c3b-adff-25d1cda5c831",
+            "documentId": "75961461-d373-4439-9907-a0326e1032ef",
+        },
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 202
+    body = response.json()
+    assert body["companyId"] == "0d001055-2737-4c3b-adff-25d1cda5c831"
+    assert body["documentId"] == "75961461-d373-4439-9907-a0326e1032ef"
+    assert body["status"] == "queued"
+
+
+def test_supervisor_run_create_rejects_document_company_mismatch(monkeypatch, tmp_path) -> None:
+    settings = _settings(tmp_path)
+    app.dependency_overrides[dependencies.get_settings] = lambda: settings
+    monkeypatch.setattr(supervisor_runs_route, "get_company", lambda passed_settings, company_id: _company_row())
+    monkeypatch.setattr(
+        supervisor_runs_route,
+        "get_document",
+        lambda passed_settings, document_id: {**_document_row("uploads/company-2/annual-report.pdf"), "company_id": UUID("11111111-1111-1111-1111-111111111111"), "status": "completed"},
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/supervisor-runs",
+        json={
+            "companyId": "0d001055-2737-4c3b-adff-25d1cda5c831",
+            "documentId": "75961461-d373-4439-9907-a0326e1032ef",
+        },
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 409
+    assert "Document does not belong" in response.text

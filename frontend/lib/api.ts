@@ -1,4 +1,4 @@
-import type { Company, CompanyDraft, CompanyUpdateDraft, UploadedDocument } from "./types";
+import type { Company, CompanyDraft, CompanyUpdateDraft, SupervisorRun, UploadedDocument } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -47,5 +47,20 @@ export function uploadDocument(companyId: string, file: File): Promise<UploadedD
   return request<UploadedDocument>("/api/documents", {
     method: "POST",
     body: formData,
+  });
+}
+
+export function listSupervisorRuns(): Promise<SupervisorRun[]> {
+  return request<SupervisorRun[]>("/api/supervisor-runs");
+}
+
+export function getSupervisorRun(runId: string): Promise<SupervisorRun> {
+  return request<SupervisorRun>(`/api/supervisor-runs/${runId}`);
+}
+
+export function createSupervisorRun(companyId: string, documentId: string): Promise<SupervisorRun> {
+  return request<SupervisorRun>("/api/supervisor-runs", {
+    method: "POST",
+    body: JSON.stringify({ companyId, documentId }),
   });
 }

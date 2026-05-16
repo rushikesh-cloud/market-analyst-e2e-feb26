@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from market_analyst.api.dependencies import get_settings
-from market_analyst.api.routes import companies, documents
+from market_analyst.api.routes import companies, documents, supervisor_runs
 
 
 def create_app() -> FastAPI:
@@ -19,6 +19,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(companies.router, prefix="/api")
     app.include_router(documents.router, prefix="/api")
+    app.include_router(supervisor_runs.router, prefix="/api")
 
     @app.get("/health")
     def health() -> dict[str, str]:

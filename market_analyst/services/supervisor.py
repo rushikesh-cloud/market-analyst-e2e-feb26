@@ -35,6 +35,7 @@ def run_supervisor_agent(
         FundamentalAnalysisRequest(
             company_name=request.company_name,
             ticker=request.ticker,
+            document_id=request.document_id,
             question=request.fundamental_question,
         ),
     )
