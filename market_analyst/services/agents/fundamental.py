@@ -49,6 +49,7 @@ def build_fundamental_analysis_agent(
         settings,
         retrieval_limit=retrieval_limit,
         system_prompt=system_prompt,
+        ticker_transform=normalize_fundamental_ticker,
     )
 
 
@@ -57,6 +58,7 @@ def run_fundamental_analysis_agent(
     request: FundamentalAnalysisRequest,
 ) -> FundamentalAnalysisResult:
     question = request.question or DEFAULT_FUNDAMENTAL_ANALYSIS_QUESTION
+    normalized_ticker = normalize_fundamental_ticker(request.ticker)
     agent = build_fundamental_analysis_agent(settings, retrieval_limit=request.retrieval_limit)
     prompt = build_fundamental_analysis_prompt(request=request, question=question)
     result = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
@@ -64,7 +66,7 @@ def run_fundamental_analysis_agent(
     rating = extract_rating_from_text(answer, keys=("fundamental_rating", "rating", "score"))
     return FundamentalAnalysisResult(
         company_name=request.company_name,
-        ticker=request.ticker,
+        ticker=normalized_ticker,
         question=question,
         answer=answer,
         rating=rating,
@@ -72,18 +74,28 @@ def run_fundamental_analysis_agent(
 
 
 def build_fundamental_analysis_prompt(*, request: FundamentalAnalysisRequest, question: str) -> str:
-    ticker_line = request.ticker or "No ticker provided; search across available report chunks for the company."
+    normalized_ticker = normalize_fundamental_ticker(request.ticker)
+    ticker_line = normalized_ticker or "No ticker provided; search across available report chunks for the company."
+    original_ticker_line = f"\nOriginal ticker input: {request.ticker}" if request.ticker and request.ticker != normalized_ticker else ""
     return f"""Company: {request.company_name}
-Ticker: {ticker_line}
+Fundamental RAG ticker: {ticker_line}{original_ticker_line}
 
 Task:
 {question}
 
 Instructions:
 - Search annual-report RAG context before answering.
+- Use the Fundamental RAG ticker for report comparison; exchange suffixes such as `.NS` are for market-data providers and are not used for fundamental report matching.
 - Focus on growth, cash flow, debt, profitability, management commentary, and risks.
 - Return a fundamental_rating from 1 to 100.
 """
+
+
+def normalize_fundamental_ticker(ticker: str | None) -> str | None:
+    if ticker is None:
+        return None
+    normalized = ticker.strip().upper().split(".", maxsplit=1)[0].strip()
+    return normalized or None
 
 
 def extract_final_message_content(agent_result: dict[str, Any]) -> str:

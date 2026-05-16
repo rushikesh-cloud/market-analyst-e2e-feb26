@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Callable
 
 from langchain.agents import create_agent
 from langchain_core.tools import tool
@@ -35,6 +36,7 @@ def build_market_analysis_agent(
     *,
     retrieval_limit: int = 5,
     system_prompt: str = DEFAULT_MARKET_AGENT_PROMPT,
+    ticker_transform: Callable[[str | None], str | None] | None = None,
 ):
     """Build the notebook-facing LangChain agent object."""
 
@@ -44,6 +46,8 @@ def build_market_analysis_agent(
     def search_fundamental_context(query: str, ticker: str | None = None) -> str:
         """Search stored annual-report chunks with hybrid full-text and vector retrieval."""
 
+        if ticker_transform:
+            ticker = ticker_transform(ticker)
         results = hybrid_search(settings, query=query, ticker=ticker, limit=retrieval_limit)
         return format_retrieval_results(results)
 

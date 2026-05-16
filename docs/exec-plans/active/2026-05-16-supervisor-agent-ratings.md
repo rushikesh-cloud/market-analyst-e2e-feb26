@@ -10,6 +10,7 @@ Finalize the notebook-first supervisor service so fundamental, technical, and ne
 - Normalize model/provider score output to the 1-100 rating contract.
 - Keep existing news sentiment-score compatibility while introducing the common `rating` field.
 - Add deterministic supervisor aggregation with configurable worker weights.
+- Normalize only the fundamental RAG ticker by stripping exchange suffixes such as `.NS`; keep the technical ticker unchanged for market-data providers.
 - Update specs and focused tests for the rating contract.
 
 ## Verification

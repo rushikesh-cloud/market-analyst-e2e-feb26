@@ -27,14 +27,14 @@ A full-stack, multi-agent system designed to provide 360-degree market intellige
 The system follows a **Supervisor-Worker** pattern. The Supervisor orchestrates three specialized workers:
 
 1. **Fundamental Agent:**
-* **Input:** Company Name + Uploaded PDF.
+* **Input:** Company Name + Uploaded PDF. If a market-data ticker includes an exchange suffix such as `.NS`, the fundamental RAG comparison strips the suffix and uses the base ticker for report matching.
 * **Processing:** Uses Azure AI Document Intelligence `prebuilt-layout` markdown extraction -> splits by markdown header levels -> preserves complete tables as atomic chunks with nearby text context -> applies size-aware chunk refinement to non-table text -> stores chunks and embeddings in Postgres/pgvector.
 * **Tool:** RAG (Hybrid Search) to analyze growth, debt, and cash flow.
 * **Output:** Fundamental Rating (1-100, where 100 is most positive) + Rationale.
 
 
 2. **Technical Agent:**
-* **Input:** Ticker Symbol.
+* **Input:** Ticker Symbol. The technical agent preserves the ticker exactly as supplied so provider-specific symbols such as Indian `ticker.NS` values continue to work with `yfinance`.
 * **Processing:** Pulls data from `yfinance` -> Generates technical charts with moving averages, RSI, and MACD -> Saves the chart as an image artifact.
 * **Tool:** Multi-modal Azure OpenAI chat model to inspect the chart image and identify trend, momentum, support/resistance, breakout/breakdown risk, and a technical rating.
 * **Output:** Technical Rating (1-100, where 100 is most positive) + Trend Analysis.
