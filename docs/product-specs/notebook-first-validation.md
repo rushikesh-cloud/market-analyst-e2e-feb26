@@ -43,6 +43,7 @@ Current companion notebook:
 - The technical agent notebook must save the generated chart image, display it before model invocation, and keep chart generation separate from the multimodal model call so both stages can be validated independently.
 - The news agent notebook must validate `TAVILY_API_KEY` and Azure OpenAI chat settings, construct the shared `services.agents.news` LangChain agent, search both company/ticker and sector context, and assert that the result includes an answer plus a 1-100 rating when the model returns valid JSON.
 - The supervisor notebook must use the shared `services.supervisor` aggregation surface so worker outputs and the final future-perspective rating use the same 1-100 contract that later runtime code will reuse.
+- The chat supervisor surface must be separate from the static supervisor run. It should expose fundamental, technical, and news workers as tools, accept bounded short-term chat history, and return a grounded answer plus the updated message history for follow-up turns.
 
 ## Acceptance Criteria
 
@@ -51,6 +52,7 @@ Current companion notebook:
 - Each notebook produces a clear visible artifact, such as extracted pages, chunk samples, retrieval results, charts, agent JSON with ratings, or supervisor report.
 - Shared modules follow the dependency order: Types -> Config -> Repo -> Service -> Runtime -> UI.
 - The final end-to-end notebook output can be used as a parity fixture for the first API implementation.
+- The supervisor chat service can answer follow-up questions by routing to the right worker tool without rerunning the complete static company analysis every turn.
 
 ## Out of Scope For This Phase
 

@@ -41,6 +41,7 @@ market_analyst/
       technical.py
       news.py
     supervisor.py
+    supervisor_chat.py
   runtime/
     graph.py
     notebook_runner.py
@@ -66,6 +67,7 @@ market_analyst/
 - Prompt construction and agent response parsing.
 - LangChain `create_agent` construction for notebook-facing agents.
 - Score normalization and supervisor aggregation.
+- Chat supervisor tool routing and bounded short-term message history.
 - LangGraph state definitions and graph construction.
 
 ## Notebook Setup Contract
