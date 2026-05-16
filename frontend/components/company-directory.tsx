@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { Building2, Plus, Save, Search, X } from "lucide-react";
-import { createCompany, listCompanies } from "@/lib/api";
-import type { Company, CompanyDraft } from "@/lib/types";
+import { Building2, Pencil, Plus, Save, Search, X } from "lucide-react";
+import { createCompany, listCompanies, updateCompany } from "@/lib/api";
+import type { Company, CompanyDraft, CompanyUpdateDraft } from "@/lib/types";
 
 const emptyDraft: CompanyDraft = {
   name: "",
@@ -13,11 +13,27 @@ const emptyDraft: CompanyDraft = {
   sector: "",
 };
 
+type CompanyFormDraft = {
+  name: string;
+  ticker: string;
+  yahooFinanceTicker: string;
+  sector: string;
+  status: string;
+  overallScore: string;
+};
+
+const emptyFormDraft: CompanyFormDraft = {
+  ...emptyDraft,
+  status: "pending",
+  overallScore: "",
+};
+
 export function CompanyDirectory() {
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [draft, setDraft] = useState<CompanyDraft>(emptyDraft);
+  const [draft, setDraft] = useState<CompanyFormDraft>(emptyFormDraft);
   const [query, setQuery] = useState("");
-  const [isAdding, setIsAdding] = useState(false);
+  const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,8 +55,35 @@ export function CompanyDirectory() {
     };
   }, []);
 
-  function update(field: keyof CompanyDraft, value: string) {
+  function update(field: keyof CompanyFormDraft, value: string) {
     setDraft((current) => ({ ...current, [field]: value }));
+  }
+
+  function openAddForm() {
+    setDraft(emptyFormDraft);
+    setEditingCompanyId(null);
+    setIsFormOpen(true);
+    setError(null);
+  }
+
+  function closeForm() {
+    setDraft(emptyFormDraft);
+    setEditingCompanyId(null);
+    setIsFormOpen(false);
+  }
+
+  function openEditForm(company: Company) {
+    setDraft({
+      name: company.name,
+      ticker: company.ticker,
+      yahooFinanceTicker: company.yahooFinanceTicker,
+      sector: company.sector ?? "",
+      status: company.status,
+      overallScore: company.overallScore == null ? "" : String(company.overallScore),
+    });
+    setEditingCompanyId(company.id);
+    setIsFormOpen(true);
+    setError(null);
   }
 
   async function saveCompany(event: FormEvent<HTMLFormElement>) {
@@ -48,10 +91,37 @@ export function CompanyDirectory() {
     setIsSaving(true);
     setError(null);
     try {
-      const nextCompany = await createCompany(draft);
-      setCompanies((current) => [nextCompany, ...current.filter((company) => company.id !== nextCompany.id)]);
-      setDraft(emptyDraft);
-      setIsAdding(false);
+      const nextOverallScore = draft.overallScore.trim() === "" ? null : Number(draft.overallScore);
+      if (draft.overallScore.trim() !== "" && Number.isNaN(nextOverallScore)) {
+        throw new Error("Overall score must be a number");
+      }
+
+      const nextCompany =
+        editingCompanyId == null
+          ? await createCompany({
+              name: draft.name,
+              ticker: draft.ticker,
+              yahooFinanceTicker: draft.yahooFinanceTicker,
+              sector: draft.sector,
+              status: draft.status,
+              overallScore: nextOverallScore,
+            })
+          : await updateCompany(editingCompanyId, {
+              name: draft.name,
+              ticker: draft.ticker,
+              yahooFinanceTicker: draft.yahooFinanceTicker,
+              sector: draft.sector,
+              status: draft.status,
+              overallScore: nextOverallScore,
+            } satisfies CompanyUpdateDraft);
+
+      setCompanies((current) => {
+        if (editingCompanyId == null) {
+          return [nextCompany, ...current.filter((company) => company.id !== nextCompany.id)];
+        }
+        return current.map((company) => (company.id === nextCompany.id ? nextCompany : company));
+      });
+      closeForm();
     } catch (apiError) {
       setError(apiError instanceof Error ? apiError.message : "Unable to save company");
     } finally {
@@ -84,17 +154,20 @@ export function CompanyDirectory() {
             </label>
             <button
               type="button"
-              onClick={() => setIsAdding((current) => !current)}
+              onClick={() => (isFormOpen ? closeForm() : openAddForm())}
               className="flex h-9 items-center justify-center gap-2 rounded-lg bg-ink px-3 text-sm font-semibold text-white"
             >
-              {isAdding ? <X size={15} /> : <Plus size={15} />}
-              {isAdding ? "Close" : "Add company"}
+              {isFormOpen ? <X size={15} /> : <Plus size={15} />}
+              {isFormOpen ? "Close" : "Add company"}
             </button>
           </div>
         </div>
 
-        {isAdding ? (
-          <form onSubmit={saveCompany} className="grid gap-3 border-b border-line bg-slate-50 p-4 md:grid-cols-2 xl:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr_auto] xl:items-end">
+        {isFormOpen ? (
+          <form
+            onSubmit={saveCompany}
+            className="grid gap-3 border-b border-line bg-slate-50 p-4 md:grid-cols-2 xl:grid-cols-[1.2fr_0.8fr_0.9fr_0.9fr_0.8fr_0.7fr_auto] xl:items-end"
+          >
             <label className="grid gap-1.5 text-xs font-medium text-muted">
               Company name
               <input
@@ -131,13 +204,35 @@ export function CompanyDirectory() {
                 required
               />
             </label>
+            <label className="grid gap-1.5 text-xs font-medium text-muted">
+              Status
+              <input
+                value={draft.status}
+                onChange={(event) => update("status", event.target.value)}
+                className="h-10 rounded-lg border border-line bg-white px-3 text-sm text-ink outline-none"
+                required
+              />
+            </label>
+            <label className="grid gap-1.5 text-xs font-medium text-muted">
+              Overall score
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value={draft.overallScore}
+                onChange={(event) => update("overallScore", event.target.value)}
+                className="h-10 rounded-lg border border-line bg-white px-3 text-sm text-ink outline-none"
+                placeholder="Optional"
+              />
+            </label>
             <button
               type="submit"
               disabled={isSaving}
               className="flex h-10 items-center justify-center gap-2 rounded-lg bg-ink px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Save size={15} />
-              {isSaving ? "Saving" : "Save"}
+              {isSaving ? "Saving" : editingCompanyId == null ? "Save" : "Update"}
             </button>
           </form>
         ) : null}
@@ -145,20 +240,23 @@ export function CompanyDirectory() {
         {error ? <div className="border-b border-line bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div> : null}
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] border-collapse text-left">
+          <table className="w-full min-w-[980px] border-collapse text-left">
             <thead className="border-b border-line bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
               <tr>
                 <th className="px-4 py-3">Company</th>
                 <th className="px-4 py-3">Ticker</th>
                 <th className="px-4 py-3">Yahoo Finance</th>
                 <th className="px-4 py-3">Sector</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Overall Score</th>
                 <th className="px-4 py-3">Added</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
               {isLoading ? (
                 <tr>
-                  <td className="px-4 py-5 text-sm text-muted" colSpan={5}>
+                  <td className="px-4 py-5 text-sm text-muted" colSpan={8}>
                     Loading companies...
                   </td>
                 </tr>
@@ -176,12 +274,24 @@ export function CompanyDirectory() {
                   <td className="px-4 py-3 text-sm text-ink">{company.ticker}</td>
                   <td className="px-4 py-3 text-sm text-ink">{company.yahooFinanceTicker}</td>
                   <td className="px-4 py-3 text-sm text-muted">{company.sector}</td>
+                  <td className="px-4 py-3 text-sm text-muted">{company.status}</td>
+                  <td className="px-4 py-3 text-sm text-muted">{formatScore(company.overallScore)}</td>
                   <td className="px-4 py-3 text-xs text-muted">{formatDate(company.createdAt)}</td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      type="button"
+                      onClick={() => openEditForm(company)}
+                      className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-line bg-white px-3 text-xs font-medium text-ink transition hover:bg-slate-50"
+                    >
+                      <Pencil size={13} />
+                      Edit
+                    </button>
+                  </td>
                 </tr>
               ))}
               {!isLoading && visibleCompanies.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-5 text-sm text-muted" colSpan={5}>
+                  <td className="px-4 py-5 text-sm text-muted" colSpan={8}>
                     No companies found.
                   </td>
                 </tr>
@@ -198,4 +308,9 @@ function formatDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString();
+}
+
+function formatScore(value?: number | null) {
+  if (value == null) return "-";
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }

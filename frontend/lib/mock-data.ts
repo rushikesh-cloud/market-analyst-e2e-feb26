@@ -41,7 +41,10 @@ export const mockCompanies: Company[] = [
     ticker: "RELIANCE",
     yahooFinanceTicker: "RELIANCE.NS",
     sector: "Energy",
+    overallScore: 74,
+    status: "completed",
     createdAt: "Today, 10:12",
+    updatedAt: "Today, 10:42",
   },
   {
     id: "company-hdfc",
@@ -49,7 +52,10 @@ export const mockCompanies: Company[] = [
     ticker: "HDFCBANK",
     yahooFinanceTicker: "HDFCBANK.NS",
     sector: "Banking",
+    overallScore: null,
+    status: "processing",
     createdAt: "Today, 09:06",
+    updatedAt: "Today, 09:18",
   },
   {
     id: "company-infosys",
@@ -57,7 +63,10 @@ export const mockCompanies: Company[] = [
     ticker: "INFY",
     yahooFinanceTicker: "INFY.NS",
     sector: "IT Services",
+    overallScore: 68,
+    status: "completed",
     createdAt: "Yesterday",
+    updatedAt: "Yesterday",
   },
 ];
 

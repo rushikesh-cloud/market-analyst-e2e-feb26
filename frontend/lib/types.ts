@@ -27,7 +27,10 @@ export type Company = {
   ticker: string;
   yahooFinanceTicker: string;
   sector: string;
+  overallScore?: number | null;
+  status: string;
   createdAt: string;
+  updatedAt: string;
 };
 
 export type CompanyDraft = {
@@ -35,6 +38,13 @@ export type CompanyDraft = {
   ticker: string;
   yahooFinanceTicker: string;
   sector: string;
+  status?: string;
+  overallScore?: number | null;
+};
+
+export type CompanyUpdateDraft = CompanyDraft & {
+  status: string;
+  overallScore?: number | null;
 };
 
 export type UploadedDocument = {

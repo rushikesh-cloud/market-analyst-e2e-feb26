@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from market_analyst.api.dependencies import get_settings
-from market_analyst.api.schemas import CompanyCreateRequest, CompanyResponse
+from market_analyst.api.schemas import CompanyCreateRequest, CompanyResponse, CompanyUpdateRequest
 from market_analyst.config.settings import Settings
-from market_analyst.repositories.companies import create_company, list_companies
+from market_analyst.repositories.companies import create_company, list_companies, update_company
 
 
 router = APIRouter(prefix="/companies", tags=["companies"])
@@ -27,4 +27,27 @@ def post_company(
         ticker=request.ticker,
         yahoo_finance_ticker=request.yahoo_finance_ticker,
         sector=request.sector,
+        status=request.status,
+        overall_score=request.overall_score,
     )
+
+
+@router.put("/{company_id}", response_model=CompanyResponse)
+def put_company(
+    company_id: str,
+    request: CompanyUpdateRequest,
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object]:
+    company = update_company(
+        settings,
+        company_id=company_id,
+        name=request.name,
+        ticker=request.ticker,
+        yahoo_finance_ticker=request.yahoo_finance_ticker,
+        sector=request.sector,
+        status=request.status,
+        overall_score=request.overall_score,
+    )
+    if company is None:
+        raise HTTPException(status_code=404, detail="Company not found")
+    return company

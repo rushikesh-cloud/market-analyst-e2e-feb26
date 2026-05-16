@@ -65,32 +65,93 @@ def create_company(
     ticker: str,
     yahoo_finance_ticker: str,
     sector: str,
+    status: str = "pending",
+    overall_score: float | None = None,
 ) -> dict[str, object]:
     ensure_project_schema(settings)
     company_id = str(uuid4())
     normalized_ticker = ticker.strip().upper()
     normalized_yahoo_ticker = yahoo_finance_ticker.strip().upper()
+    normalized_status = status.strip().lower()
+    normalized_score = overall_score if overall_score is None else float(overall_score)
     with psycopg.connect(settings.psycopg_dsn, row_factory=dict_row) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO companies (id, ticker, yahoo_finance_ticker, name, sector, status)
-                VALUES (%s, %s, %s, %s, %s, 'pending')
+                INSERT INTO companies (id, ticker, yahoo_finance_ticker, name, sector, overall_score, status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (ticker)
                 DO UPDATE SET
                     yahoo_finance_ticker = EXCLUDED.yahoo_finance_ticker,
                     name = EXCLUDED.name,
                     sector = EXCLUDED.sector,
+                    overall_score = EXCLUDED.overall_score,
+                    status = EXCLUDED.status,
                     updated_at = now()
                 RETURNING id, ticker, yahoo_finance_ticker, name, sector, overall_score, status, created_at, updated_at
                 """,
-                (company_id, normalized_ticker, normalized_yahoo_ticker, name.strip(), sector.strip()),
+                (
+                    company_id,
+                    normalized_ticker,
+                    normalized_yahoo_ticker,
+                    name.strip(),
+                    sector.strip(),
+                    normalized_score,
+                    normalized_status,
+                ),
             )
             row = cur.fetchone()
         conn.commit()
     if row is None:
         raise RuntimeError(f"Failed to create company {normalized_ticker}")
     return _serialize_company_row(row)
+
+
+def update_company(
+    settings: Settings,
+    *,
+    company_id: str,
+    name: str,
+    ticker: str,
+    yahoo_finance_ticker: str,
+    sector: str,
+    status: str,
+    overall_score: float | None,
+) -> dict[str, object] | None:
+    ensure_project_schema(settings)
+    normalized_ticker = ticker.strip().upper()
+    normalized_yahoo_ticker = yahoo_finance_ticker.strip().upper()
+    normalized_status = status.strip().lower()
+    normalized_score = overall_score if overall_score is None else float(overall_score)
+    with psycopg.connect(settings.psycopg_dsn, row_factory=dict_row) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE companies
+                SET
+                    ticker = %s,
+                    yahoo_finance_ticker = %s,
+                    name = %s,
+                    sector = %s,
+                    status = %s,
+                    overall_score = %s,
+                    updated_at = now()
+                WHERE id = %s
+                RETURNING id, ticker, yahoo_finance_ticker, name, sector, overall_score, status, created_at, updated_at
+                """,
+                (
+                    normalized_ticker,
+                    normalized_yahoo_ticker,
+                    name.strip(),
+                    sector.strip(),
+                    normalized_status,
+                    normalized_score,
+                    company_id,
+                ),
+            )
+            row = cur.fetchone()
+        conn.commit()
+    return _serialize_company_row(row) if row else None
 
 
 def _serialize_company_row(row: dict[str, Any]) -> dict[str, object]:

@@ -16,6 +16,17 @@ class CompanyCreateRequest(ApiModel):
     ticker: str
     yahoo_finance_ticker: str = Field(alias="yahooFinanceTicker")
     sector: str
+    status: str = "pending"
+    overall_score: float | None = Field(default=None, alias="overallScore")
+
+
+class CompanyUpdateRequest(ApiModel):
+    name: str
+    ticker: str
+    yahoo_finance_ticker: str = Field(alias="yahooFinanceTicker")
+    sector: str
+    status: str
+    overall_score: float | None = Field(default=None, alias="overallScore")
 
 
 class CompanyResponse(ApiModel):

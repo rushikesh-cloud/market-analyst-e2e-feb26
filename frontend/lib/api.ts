@@ -1,4 +1,4 @@
-import type { Company, CompanyDraft, UploadedDocument } from "./types";
+import type { Company, CompanyDraft, CompanyUpdateDraft, UploadedDocument } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -24,6 +24,13 @@ export function listCompanies(): Promise<Company[]> {
 export function createCompany(draft: CompanyDraft): Promise<Company> {
   return request<Company>("/api/companies", {
     method: "POST",
+    body: JSON.stringify(draft),
+  });
+}
+
+export function updateCompany(companyId: string, draft: CompanyUpdateDraft): Promise<Company> {
+  return request<Company>(`/api/companies/${companyId}`, {
+    method: "PUT",
     body: JSON.stringify(draft),
   });
 }
