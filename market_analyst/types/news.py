@@ -20,4 +20,5 @@ class NewsAnalysisResult:
     sector: str | None
     question: str
     answer: str
-    sentiment_score: int | None
+    rating: int | None = None
+    sentiment_score: int | None = None

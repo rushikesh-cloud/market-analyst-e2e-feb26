@@ -37,5 +37,5 @@ def test_parse_json_object_handles_fenced_json_and_score() -> None:
 
 def test_extract_sentiment_score_clamps_numeric_values() -> None:
     assert extract_sentiment_score({"sentiment_score": 120}) == 100
-    assert extract_sentiment_score({"sentiment_score": -10}) == 0
+    assert extract_sentiment_score({"sentiment_score": -10}) == 1
     assert extract_sentiment_score({"sentiment_score": True}) is None

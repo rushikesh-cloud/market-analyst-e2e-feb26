@@ -13,6 +13,7 @@ from market_analyst.services.charting import (
     generate_technical_chart,
     summarize_chart_artifact,
 )
+from market_analyst.services.scoring import extract_rating_from_text
 from market_analyst.types.technical import (
     TechnicalAnalysisRequest,
     TechnicalAnalysisResult,
@@ -32,14 +33,17 @@ def run_technical_analysis_agent(
     *,
     output_dir: Path | str = "notebooks/outputs/technical_charts",
 ) -> TechnicalAnalysisResult:
+    question = request.question or DEFAULT_TECHNICAL_QUESTION
     prices = fetch_price_history(request.ticker, period=request.period, interval=request.interval)
     prices_with_indicators = add_technical_indicators(prices)
     artifact = generate_technical_chart(request.ticker, prices_with_indicators, output_dir=output_dir)
-    answer = analyze_technical_chart(settings, artifact=artifact, question=request.question)
+    answer = analyze_technical_chart(settings, artifact=artifact, question=question)
+    rating = extract_rating_from_text(answer, keys=("technical_rating", "technical_score", "rating", "score"))
     return TechnicalAnalysisResult(
         ticker=artifact.ticker,
-        question=request.question,
+        question=question,
         answer=answer,
+        rating=rating,
         chart_path=artifact.chart_path,
         artifact=artifact,
     )
@@ -76,8 +80,21 @@ def build_chart_prompt(*, artifact: TechnicalChartArtifact, question: str) -> st
 
 Use the attached chart image as the primary evidence. The chart includes close price,
 20-day and 50-day moving averages, RSI14, and MACD. Answer the user's question with
-specific observations from the chart. Return concise sections for trend, momentum,
-support/resistance, risks, and technical score.
+specific observations from the chart.
+
+Return only valid JSON with this schema:
+{{
+  "ticker": "string",
+  "technical_rating": 1,
+  "trend": "string",
+  "momentum": "string",
+  "support_resistance": "string",
+  "risks": ["string"],
+  "rationale": "string"
+}}
+
+The technical_rating must be an integer from 1 to 100, where 100 is most positive
+for the stock's future perspective.
 
 Chart metadata:
 {summarize_chart_artifact(artifact)}

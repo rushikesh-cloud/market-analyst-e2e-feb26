@@ -11,7 +11,7 @@ Status: initial planning reference. This file should be regenerated or updated w
 | id | uuid | Primary key |
 | ticker | text | Unique market ticker |
 | name | text | Company display name |
-| overall_score | numeric | Latest supervisor score from 0 to 100 |
+| overall_score | numeric | Latest supervisor future-perspective rating from 1 to 100 |
 | status | text | Processing state such as `pending`, `processing`, `completed`, or `failed` |
 | created_at | timestamptz | Creation timestamp |
 | updated_at | timestamptz | Last update timestamp |
@@ -41,7 +41,7 @@ Current ingestion metadata must include `source_path`, `source_file`, `company_n
 | fundamental_json | jsonb | Fundamental agent output |
 | technical_json | jsonb | Technical agent output |
 | news_json | jsonb | News agent output |
-| supervisor_summary | jsonb | Final supervisor report and score weighting |
+| supervisor_summary | jsonb | Final supervisor report, component ratings, and weighting |
 | created_at | timestamptz | Creation timestamp |
 
 ## Retrieval Requirement

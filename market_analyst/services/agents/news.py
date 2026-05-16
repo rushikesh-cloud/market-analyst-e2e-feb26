@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-import re
 from typing import Any
 
 from langchain.agents import create_agent
@@ -9,13 +7,14 @@ from langchain.agents import create_agent
 from market_analyst.config.settings import Settings
 from market_analyst.providers.tavily import build_tavily_search_tool
 from market_analyst.services.agent import build_chat_model
+from market_analyst.services.scoring import extract_rating, normalize_rating, parse_json_object
 from market_analyst.types.news import NewsAnalysisRequest, NewsAnalysisResult
 
 
 DEFAULT_NEWS_ANALYSIS_QUESTION = (
     "Find recent company-specific and sector-level news. Separate positive and negative "
-    "developments, identify material stock implications, and assign a sentiment score "
-    "from 0 to 100."
+    "developments, identify material stock implications, and assign a news rating "
+    "from 1 to 100."
 )
 
 DEFAULT_NEWS_AGENT_PROMPT = """You are the news-analysis worker agent for a market intelligence system.
@@ -33,7 +32,8 @@ Return only valid JSON with this schema:
   "company_name": "string",
   "ticker": "string",
   "sector": "string or null",
-  "sentiment_score": 0,
+  "rating": 1,
+  "sentiment_score": 1,
   "positive_developments": ["string"],
   "negative_developments": ["string"],
   "sector_context": ["string"],
@@ -42,8 +42,9 @@ Return only valid JSON with this schema:
   "sources": [{"title": "string", "url": "string"}]
 }
 
-Use a sentiment score above 60 only when recent news is clearly favorable, below 40 only
-when recent news is clearly adverse, and 40-60 when mixed or thin. Do not invent sources.
+Use a rating above 60 only when recent news is clearly favorable, below 40 only
+when recent news is clearly adverse, and 40-60 when mixed or thin. The rating and
+sentiment_score fields must be integers from 1 to 100. Do not invent sources.
 """
 
 
@@ -80,14 +81,15 @@ def run_news_analysis_agent(settings: Settings, request: NewsAnalysisRequest) ->
     result = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
     answer = extract_final_message_content(result)
     payload = parse_json_object(answer)
-    sentiment_score = extract_sentiment_score(payload)
+    rating = extract_rating(payload, keys=("rating", "sentiment_score", "news_rating", "score"))
     return NewsAnalysisResult(
         company_name=request.company_name,
         ticker=request.ticker,
         sector=request.sector,
         question=question,
         answer=answer,
-        sentiment_score=sentiment_score,
+        rating=rating,
+        sentiment_score=rating,
     )
 
 
@@ -124,36 +126,5 @@ def extract_final_message_content(agent_result: dict[str, Any]) -> str:
     return str(content)
 
 
-def parse_json_object(text: str) -> dict[str, Any]:
-    stripped = text.strip()
-    if stripped.startswith("```"):
-        stripped = re.sub(r"^```(?:json)?\s*", "", stripped)
-        stripped = re.sub(r"\s*```$", "", stripped)
-
-    try:
-        parsed = json.loads(stripped)
-    except json.JSONDecodeError:
-        match = re.search(r"\{.*\}", stripped, flags=re.DOTALL)
-        if not match:
-            return {}
-        try:
-            parsed = json.loads(match.group(0))
-        except json.JSONDecodeError:
-            return {}
-
-    return parsed if isinstance(parsed, dict) else {}
-
-
 def extract_sentiment_score(payload: dict[str, Any]) -> int | None:
-    value = payload.get("sentiment_score")
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, int):
-        return max(0, min(100, value))
-    if isinstance(value, float):
-        return max(0, min(100, int(round(value))))
-    if isinstance(value, str):
-        match = re.search(r"\d+(?:\.\d+)?", value)
-        if match:
-            return max(0, min(100, int(round(float(match.group(0))))))
-    return None
+    return normalize_rating(payload.get("sentiment_score"))

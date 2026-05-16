@@ -7,7 +7,7 @@ from pathlib import Path
 @dataclass(frozen=True)
 class TechnicalAnalysisRequest:
     ticker: str
-    question: str
+    question: str | None = None
     period: str = "6mo"
     interval: str = "1d"
 
@@ -32,5 +32,6 @@ class TechnicalAnalysisResult:
     ticker: str
     question: str
     answer: str
+    rating: int | None
     chart_path: Path
     artifact: TechnicalChartArtifact

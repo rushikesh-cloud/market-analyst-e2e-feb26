@@ -30,26 +30,27 @@ The system follows a **Supervisor-Worker** pattern. The Supervisor orchestrates 
 * **Input:** Company Name + Uploaded PDF.
 * **Processing:** Uses Azure AI Document Intelligence `prebuilt-layout` markdown extraction -> splits by markdown header levels -> preserves complete tables as atomic chunks with nearby text context -> applies size-aware chunk refinement to non-table text -> stores chunks and embeddings in Postgres/pgvector.
 * **Tool:** RAG (Hybrid Search) to analyze growth, debt, and cash flow.
-* **Output:** Fundamental Score (0-100) + Rationale.
+* **Output:** Fundamental Rating (1-100, where 100 is most positive) + Rationale.
 
 
 2. **Technical Agent:**
 * **Input:** Ticker Symbol.
 * **Processing:** Pulls data from `yfinance` -> Generates technical charts with moving averages, RSI, and MACD -> Saves the chart as an image artifact.
-* **Tool:** Multi-modal Azure OpenAI chat model to inspect the chart image and identify trend, momentum, support/resistance, breakout/breakdown risk, and a technical score.
-* **Output:** Technical Score (0-100) + Trend Analysis.
+* **Tool:** Multi-modal Azure OpenAI chat model to inspect the chart image and identify trend, momentum, support/resistance, breakout/breakdown risk, and a technical rating.
+* **Output:** Technical Rating (1-100, where 100 is most positive) + Trend Analysis.
 
 
 3. **News Agent:**
 * **Input:** Company Name + Ticker.
 * **Tool:** Tavily Search API through the `langchain-tavily` LangChain tool.
 * **Processing:** Runs recent company/ticker news search plus sector-context search, separates favorable and adverse developments, identifies stock implications and watch items, and returns source-attributed JSON.
-* **Output:** Sentiment Score (0-100), positive/negative news bullets, sector context, stock implications, watch items, and source links.
+* **Output:** News Rating (1-100, where 100 is most positive), positive/negative news bullets, sector context, stock implications, watch items, and source links.
 
 
 4. **Supervisor Agent:**
 * **Role:** Aggregates outputs from the three workers.
-* **Logic:** Weighs scores to provide a final "Projected Future Performance" report.
+* **Logic:** Weighs worker ratings to provide a final "Projected Future Performance" report.
+* **Output:** Final Future-Perspective Rating (1-100, where 100 is most positive) with component rating rationale.
 
 
 
