@@ -29,11 +29,11 @@ export function ChatPanel({ enabled, initialMessages }: { enabled: boolean; init
   }
 
   return (
-    <section className="rounded-xl border border-line bg-panel shadow-soft">
+    <section className="flex min-h-[420px] flex-col rounded-xl border border-line bg-panel shadow-soft xl:h-[calc(100vh-10rem)] xl:max-h-[760px]">
       <div className="border-b border-line p-4">
         <h2 className="text-sm font-semibold">Chat</h2>
       </div>
-      <div className="thin-scrollbar grid max-h-[340px] gap-3 overflow-y-auto p-4">
+      <div className="thin-scrollbar flex-1 space-y-3 overflow-y-auto p-4">
         {messages.length > 0 ? (
           messages.map((message) => (
             <div
@@ -51,7 +51,7 @@ export function ChatPanel({ enabled, initialMessages }: { enabled: boolean; init
           </div>
         )}
       </div>
-      <form onSubmit={submit} className="flex gap-2 border-t border-line p-3">
+      <form onSubmit={submit} className="sticky bottom-0 mt-auto flex gap-2 border-t border-line bg-panel p-3">
         <input
           value={draft}
           onChange={(event) => setDraft(event.target.value)}

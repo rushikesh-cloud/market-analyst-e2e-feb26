@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, RotateCw, Share2 } from "lucide-react";
 import { AgentPanel } from "@/components/agent-panel";
 import { ChatPanel } from "@/components/chat-panel";
-import { FloatingChartWindow } from "@/components/floating-chart-window";
 import { RunTimeline } from "@/components/run-timeline";
 import { SupervisorPanel } from "@/components/supervisor-panel";
 import { getSupervisorRun, getSupervisorRunTechnicalChartUrl } from "@/lib/api";
@@ -97,8 +96,6 @@ export function RunWorkspace({ runId }: { runId: string }) {
     return <div className="p-4 text-sm text-muted md:p-6">Loading supervisor run...</div>;
   }
 
-  const chartReady = Boolean(run.technical?.chart_path);
-
   return (
     <div className="grid gap-5 p-4 md:p-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -140,9 +137,10 @@ export function RunWorkspace({ runId }: { runId: string }) {
           </div>
           <SupervisorPanel output={supervisor} />
         </div>
-        <ChatPanel enabled={run.status === "completed"} initialMessages={mockChatMessages} />
+        <div className="xl:sticky xl:top-6 xl:self-start">
+          <ChatPanel enabled={run.status === "completed"} initialMessages={mockChatMessages} />
+        </div>
       </div>
-      <FloatingChartWindow output={agents.technical} chartReady={chartReady} />
     </div>
   );
 }

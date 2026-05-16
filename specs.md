@@ -39,6 +39,13 @@ The system follows a **Supervisor-Worker** pattern. The Supervisor orchestrates 
 * **Tool:** Multi-modal Azure OpenAI chat model to inspect the chart image and identify trend, momentum, support/resistance, breakout/breakdown risk, and a technical rating.
 * **Output:** Technical Rating (1-100, where 100 is most positive) + Trend Analysis.
 
+   Parallel validation path:
+* **Technical Agent V2:** A separate LangChain `create_agent` worker remains isolated from V1 until replacement time.
+* **Input:** Ticker Symbol plus dynamic duration/period, candle interval, and per-indicator configurations.
+* **Processing:** Uses tool-calling to fetch price history, generate candlestick charts on demand, attach only the requested indicator panels and overlays, and then run multimodal chart analysis against the generated image.
+* **Supported indicators for the first V2 slice:** MACD, RSI, and Bollinger Bands with user-configurable parameters.
+* **Output:** Technical Rating (1-100), structured chart-summary evidence, and the generated chart artifact path.
+
 
 3. **News Agent:**
 * **Input:** Company Name + Ticker.
@@ -103,6 +110,7 @@ Required notebooks:
 Current companion notebook:
 
 - `04_rag_agent_end_to_end.ipynb`: runnable document-to-RAG-agent validation path for fundamentals questions before the dedicated worker-agent notebooks are fully split out.
+- `05_technical_agent_v2.ipynb`: separate technical-agent V2 validation path for dynamic indicator-driven charts built through LangChain `create_agent` tools without replacing V1 yet.
 
 Notebook-specific requirements and acceptance criteria are defined in `docs/product-specs/notebook-first-validation.md`. Reusable module boundaries for this phase are defined in `docs/design-docs/notebook-first-modularization.md`.
 
@@ -111,6 +119,7 @@ Notebook-specific requirements and acceptance criteria are defined in `docs/prod
 * **State Management:** The `AgentState` object will pass the ticker, the paths to generated charts, and the retrieved RAG contexts between nodes.
 * **Batch Processing:** Uses Python's `asyncio` to trigger the three agents in parallel within the LangGraph.
 * **Chat Engine:** A separate chat-facing supervisor agent exposes the three worker agents as callable tools and accepts bounded short-term message history for continuous follow-up questions.
+* **Technical V2 Evaluation Surface:** The dynamic technical-agent V2 stays as a separate service/notebook path until it reaches parity and is explicitly promoted to replace V1.
 * **FastAPI Company API:** The first backend integration slice exposes company creation, listing, and editing through FastAPI. Company creation captures company name, internal ticker, Yahoo Finance ticker, and sector, then persists the normalized company row in PostgreSQL. The edit path allows operators to update every mutable company-master field stored in the row: company name, internal ticker, Yahoo Finance ticker, sector, status, and overall score.
 * **FastAPI Document Injection API:** Document upload is asynchronous. The upload request stores the file under local `uploads/documents/`, creates a document row, and schedules ingestion in the background. Each ingestion stage is synced back to PostgreSQL so the frontend can poll status, stage, page count, processed pages, chunk count, vector ID count, report-row count, and any failure message.
 * **FastAPI Supervisor Run API:** Supervisor workflows are now persisted backend runs. Creating a run requires selecting an existing company and one completed ingested document that belongs to that company. The API validates the company-document relationship, creates a run row, executes the supervisor workflow in the background, and stores per-agent status plus worker/supervisor JSON on the run row so the frontend can poll workflow history and run detail.
@@ -123,10 +132,9 @@ Notebook-specific requirements and acceptance criteria are defined in `docs/prod
 * **New Workflow Flow:** The workflow launcher is selection-driven. The user picks an existing company and then one completed document from that company. Submitting the form creates a persisted supervisor run through FastAPI and routes the user into the run detail view for that backend run.
 * **Run Detail Page:** The run detail view exposes the supervisor timeline, selected document context, vertically stacked collapsible fundamental, technical, and news agent outputs, and the final supervisor outcome. The first backend-connected slice polls persisted run state rather than streaming tokens live.
   On newly created or still-running backend runs, agent panels must not show mock evidence, placeholder cards, or seeded analysis copy; until a persisted worker result exists, the body stays blank apart from minimal waiting-state text. When a worker answer is stored as a JSON string, the UI must parse and render that payload as structured evidence/details instead of showing the raw JSON blob in the panel body. The technical panel must render the actual generated chart image used for analysis inside the block itself. The fundamental panel must render a compiled source-page list for the annual-report chunks used to ground the answer, and the news panel must render the source website list returned by the news worker.
-* **Floating Chart Window:** Technical chart viewing is launched from a bottom-right floating chart control. Opening it shows the same persisted chart artifact and technical answer in a small floating window without requiring the user to expand the technical agent row.
 * **Agents Page:** The previous hash-linked agents block is now a proper Next.js page that documents the backend-connected agent surfaces.
 * **Streaming Adapter:** The early frontend scaffold used mock streaming events with the same conceptual shape expected from the future backend. The current backend-connected workflow pages now poll persisted supervisor runs while live streaming remains a later transport enhancement.
-* **Chat Pod:** A dedicated chat window is scoped to one completed stock run. Follow-up questions are answered by the supervisor against the existing worker outputs and stored workflow context. Before supervisor completion, the chat pod must stay visually empty aside from a disabled-state message and must not display mock "result ready" content.
+* **Chat Pod:** A dedicated chat window is scoped to one completed stock run. Follow-up questions are answered by the supervisor against the existing worker outputs and stored workflow context. Before supervisor completion, the chat pod must stay visually empty aside from a disabled-state message and must not display mock "result ready" content. On desktop run-detail layouts, the chat pod stays pinned on the right side while scrolling and its text composer stays anchored to the bottom edge of the pod.
 * **Integration Path:** Company, document, workflow history, and run detail pages now use FastAPI transport. The current supervisor run transport is polling-based; chat and future live token streaming can be layered on later without rewriting the visual workflow, timeline, agent panels, supervisor panel, or chat pod.
 
 ---
@@ -140,4 +148,3 @@ Notebook-specific requirements and acceptance criteria are defined in `docs/prod
 5. **Phase 4:** LangGraph Supervisor logic and Scoring weights.
 6. **Phase 5:** FastAPI backend integration using the notebook-validated reusable modules.
 7. **Phase 6:** React UI & streaming workflow integration. The first scaffold is a clickable Next.js/Tailwind/Lucide frontend with mock streaming data; backend integration follows after API contracts are finalized.
-
