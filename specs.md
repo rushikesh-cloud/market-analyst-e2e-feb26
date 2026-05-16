@@ -53,6 +53,13 @@ The system follows a **Supervisor-Worker** pattern. The Supervisor orchestrates 
 * **Output:** Final Future-Perspective Rating (1-100, where 100 is most positive) with component rating rationale.
 
 
+5. **Supervisor Chat Agent:**
+* **Role:** Answers follow-up questions after or alongside a supervisor run.
+* **Logic:** Runs as a second supervisor layer with the fundamental, technical, and news worker agents attached as tools. It routes user questions to the right worker tool when the question needs fresh fundamental, technical, or news evidence, and uses the attached supervisor snapshot for questions about the existing overall rating.
+* **State:** Maintains bounded short-term chat history supplied by the caller for continuous follow-up turns. Long-term persistence remains a later backend concern.
+* **Output:** Conversational answer grounded in the supervisor snapshot and any worker-tool results used during the turn.
+
+
 
 ---
 
@@ -103,6 +110,7 @@ Notebook-specific requirements and acceptance criteria are defined in `docs/prod
 
 * **State Management:** The `AgentState` object will pass the ticker, the paths to generated charts, and the retrieved RAG contexts between nodes.
 * **Batch Processing:** Uses Python's `asyncio` to trigger the three agents in parallel within the LangGraph.
+* **Chat Engine:** A separate chat-facing supervisor agent exposes the three worker agents as callable tools and accepts bounded short-term message history for continuous follow-up questions.
 
 ### 5.2. Frontend (React)
 

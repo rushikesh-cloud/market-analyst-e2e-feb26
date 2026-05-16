@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, RotateCw, Share2 } from "lucide-react";
 import { AgentPanel } from "@/components/agent-panel";
 import { ChatPanel } from "@/components/chat-panel";
+import { FloatingChartWindow } from "@/components/floating-chart-window";
 import { RunTimeline } from "@/components/run-timeline";
 import { SupervisorPanel } from "@/components/supervisor-panel";
 import { baseAgentOutputs, mockChatMessages, mockWorkflows, timelineSteps } from "@/lib/mock-data";
@@ -172,15 +173,16 @@ export function RunWorkspace({ runId }: { runId: string }) {
 
       <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
         <div className="grid gap-5">
-          <div className="grid gap-5 lg:grid-cols-3">
-            <AgentPanel output={agents.fundamental} />
-            <AgentPanel output={agents.technical} chartReady={chartReady} />
+          <div className="grid gap-3">
+            <AgentPanel output={agents.fundamental} defaultOpen />
+            <AgentPanel output={agents.technical} />
             <AgentPanel output={agents.news} />
           </div>
           <SupervisorPanel output={supervisor} />
         </div>
         <ChatPanel enabled={supervisor.status === "completed"} initialMessages={mockChatMessages} />
       </div>
+      <FloatingChartWindow output={agents.technical} chartReady={chartReady} />
     </div>
   );
 }
