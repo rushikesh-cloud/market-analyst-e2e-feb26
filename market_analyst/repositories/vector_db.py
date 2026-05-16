@@ -12,6 +12,8 @@ from psycopg.types.json import Jsonb
 
 from market_analyst.config.settings import Settings
 
+_SCHEMA_READY = False
+
 
 def build_embeddings(settings: Settings) -> AzureOpenAIEmbeddings:
     settings.require_embeddings()
@@ -50,80 +52,189 @@ def add_chunks_to_vector_store(
 
 
 def ensure_project_schema(settings: Settings) -> None:
+    global _SCHEMA_READY
+
     settings.require_database()
+    if _SCHEMA_READY:
+        return
+
     with psycopg.connect(settings.psycopg_dsn) as conn:
+        if _project_schema_ready(conn):
+            _SCHEMA_READY = True
+            return
+
         with conn.cursor() as cur:
-            cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
-        conn.commit()
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS companies (
-                    id uuid PRIMARY KEY,
-                    ticker text UNIQUE NOT NULL,
-                    yahoo_finance_ticker text,
-                    name text NOT NULL,
-                    sector text,
-                    overall_score numeric,
-                    status text NOT NULL DEFAULT 'processing',
-                    created_at timestamptz NOT NULL DEFAULT now(),
-                    updated_at timestamptz NOT NULL DEFAULT now()
-                )
-                """
+            cur.execute("SELECT pg_advisory_lock(25134, 25152)")
+        try:
+            if _project_schema_ready(conn):
+                _SCHEMA_READY = True
+                return
+
+            _create_project_schema(conn)
+            _SCHEMA_READY = True
+        finally:
+            with conn.cursor() as cur:
+                cur.execute("SELECT pg_advisory_unlock(25134, 25152)")
+
+
+def _create_project_schema(conn: psycopg.Connection) -> None:
+    with conn.cursor() as cur:
+        cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    conn.commit()
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS companies (
+                id uuid PRIMARY KEY,
+                ticker text UNIQUE NOT NULL,
+                yahoo_finance_ticker text,
+                name text NOT NULL,
+                sector text,
+                overall_score numeric,
+                status text NOT NULL DEFAULT 'processing',
+                created_at timestamptz NOT NULL DEFAULT now(),
+                updated_at timestamptz NOT NULL DEFAULT now()
             )
-            cur.execute("ALTER TABLE companies ADD COLUMN IF NOT EXISTS yahoo_finance_ticker text")
-            cur.execute("ALTER TABLE companies ADD COLUMN IF NOT EXISTS sector text")
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS documents (
-                    id uuid PRIMARY KEY,
-                    company_id uuid NOT NULL REFERENCES companies(id),
-                    document_name text NOT NULL,
-                    file_name text NOT NULL,
-                    content_type text,
-                    file_size bigint NOT NULL,
-                    source_path text NOT NULL,
-                    status text NOT NULL DEFAULT 'uploaded',
-                    stage text NOT NULL DEFAULT 'stored',
-                    page_count integer,
-                    pages_processed integer,
-                    chunk_count integer,
-                    vector_ids_count integer,
-                    reports_rows integer,
-                    error_message text,
-                    metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
-                    created_at timestamptz NOT NULL DEFAULT now(),
-                    updated_at timestamptz NOT NULL DEFAULT now()
-                )
-                """
+            """
+        )
+        cur.execute("ALTER TABLE companies ADD COLUMN IF NOT EXISTS yahoo_finance_ticker text")
+        cur.execute("ALTER TABLE companies ADD COLUMN IF NOT EXISTS sector text")
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS documents (
+                id uuid PRIMARY KEY,
+                company_id uuid NOT NULL REFERENCES companies(id),
+                document_name text NOT NULL,
+                file_name text NOT NULL,
+                content_type text,
+                file_size bigint NOT NULL,
+                source_path text NOT NULL,
+                status text NOT NULL DEFAULT 'uploaded',
+                stage text NOT NULL DEFAULT 'stored',
+                page_count integer,
+                pages_processed integer,
+                chunk_count integer,
+                vector_ids_count integer,
+                reports_rows integer,
+                error_message text,
+                metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+                created_at timestamptz NOT NULL DEFAULT now(),
+                updated_at timestamptz NOT NULL DEFAULT now()
             )
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS reports (
-                    id uuid PRIMARY KEY,
-                    company_id uuid NOT NULL REFERENCES companies(id),
-                    document_id uuid REFERENCES documents(id),
-                    document_name text,
-                    source_path text NOT NULL,
-                    upload_status text,
-                    content text NOT NULL,
-                    search_vector tsvector NOT NULL,
-                    embedding vector,
-                    page_number integer,
-                    metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
-                    created_at timestamptz NOT NULL DEFAULT now()
-                )
-                """
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS reports (
+                id uuid PRIMARY KEY,
+                company_id uuid NOT NULL REFERENCES companies(id),
+                document_id uuid REFERENCES documents(id),
+                document_name text,
+                source_path text NOT NULL,
+                upload_status text,
+                content text NOT NULL,
+                search_vector tsvector NOT NULL,
+                embedding vector,
+                page_number integer,
+                metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+                created_at timestamptz NOT NULL DEFAULT now()
             )
-            cur.execute("ALTER TABLE reports ADD COLUMN IF NOT EXISTS document_id uuid REFERENCES documents(id)")
-            cur.execute("ALTER TABLE reports ADD COLUMN IF NOT EXISTS document_name text")
-            cur.execute("ALTER TABLE reports ADD COLUMN IF NOT EXISTS upload_status text")
-            cur.execute("CREATE INDEX IF NOT EXISTS documents_company_id_idx ON documents(company_id)")
-            cur.execute("CREATE INDEX IF NOT EXISTS documents_status_idx ON documents(status)")
-            cur.execute("CREATE INDEX IF NOT EXISTS reports_company_id_idx ON reports(company_id)")
-            cur.execute("CREATE INDEX IF NOT EXISTS reports_document_id_idx ON reports(document_id)")
-            cur.execute("CREATE INDEX IF NOT EXISTS reports_search_vector_idx ON reports USING GIN(search_vector)")
-        conn.commit()
+            """
+        )
+        cur.execute("ALTER TABLE reports ADD COLUMN IF NOT EXISTS document_id uuid REFERENCES documents(id)")
+        cur.execute("ALTER TABLE reports ADD COLUMN IF NOT EXISTS document_name text")
+        cur.execute("ALTER TABLE reports ADD COLUMN IF NOT EXISTS upload_status text")
+        cur.execute("CREATE INDEX IF NOT EXISTS documents_company_id_idx ON documents(company_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS documents_status_idx ON documents(status)")
+        cur.execute("CREATE INDEX IF NOT EXISTS reports_company_id_idx ON reports(company_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS reports_document_id_idx ON reports(document_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS reports_search_vector_idx ON reports USING GIN(search_vector)")
+    conn.commit()
+
+
+def _project_schema_ready(conn: psycopg.Connection) -> bool:
+    required_columns = {
+        "companies": {"id", "ticker", "yahoo_finance_ticker", "name", "sector", "overall_score", "status", "created_at", "updated_at"},
+        "documents": {
+            "id",
+            "company_id",
+            "document_name",
+            "file_name",
+            "content_type",
+            "file_size",
+            "source_path",
+            "status",
+            "stage",
+            "page_count",
+            "pages_processed",
+            "chunk_count",
+            "vector_ids_count",
+            "reports_rows",
+            "error_message",
+            "metadata",
+            "created_at",
+            "updated_at",
+        },
+        "reports": {
+            "id",
+            "company_id",
+            "document_id",
+            "document_name",
+            "source_path",
+            "upload_status",
+            "content",
+            "search_vector",
+            "embedding",
+            "page_number",
+            "metadata",
+            "created_at",
+        },
+    }
+    required_indexes = {
+        "documents_company_id_idx",
+        "documents_status_idx",
+        "reports_company_id_idx",
+        "reports_document_id_idx",
+        "reports_search_vector_idx",
+    }
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector') AS installed")
+        extension_row = cur.fetchone()
+        if not extension_row or not extension_row["installed"]:
+            return False
+
+        cur.execute(
+            """
+            SELECT table_name, column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = ANY(%s)
+            """,
+            (list(required_columns),),
+        )
+        actual_columns: dict[str, set[str]] = {table: set() for table in required_columns}
+        for row in cur.fetchall():
+            actual_columns[str(row["table_name"])].add(str(row["column_name"]))
+
+        cur.execute(
+            """
+            SELECT indexname
+            FROM pg_indexes
+            WHERE schemaname = 'public'
+              AND indexname = ANY(%s)
+            """,
+            (list(required_indexes),),
+        )
+        actual_indexes = {str(row["indexname"]) for row in cur.fetchall()}
+
+    return all(required_columns[table].issubset(actual_columns[table]) for table in required_columns) and required_indexes.issubset(actual_indexes)
+
+
+def reset_project_schema_cache() -> None:
+    global _SCHEMA_READY
+
+    _SCHEMA_READY = False
 
 
 def sync_chunks_to_project_tables(
@@ -136,20 +247,25 @@ def sync_chunks_to_project_tables(
     inserted = 0
     with psycopg.connect(settings.psycopg_dsn) as conn:
         with conn.cursor() as cur:
+            company_ids: dict[str, str] = {}
+            ticker_names = {
+                str(chunk.metadata["ticker"]): str(chunk.metadata["company_name"])
+                for chunk in chunks
+            }
+            for ticker in sorted(ticker_names):
+                company_ids[ticker] = _upsert_company(
+                    cur,
+                    ticker=ticker,
+                    name=ticker_names[ticker],
+                )
+
             if replace_source:
                 source_paths = sorted({chunk.metadata["source_path"] for chunk in chunks})
                 for source_path in source_paths:
                     cur.execute("DELETE FROM reports WHERE source_path = %s", (source_path,))
 
-            company_ids: dict[str, str] = {}
             for chunk in chunks:
                 ticker = str(chunk.metadata["ticker"])
-                if ticker not in company_ids:
-                    company_ids[ticker] = _upsert_company(
-                        cur,
-                        ticker=ticker,
-                        name=str(chunk.metadata["company_name"]),
-                    )
                 cur.execute(
                     """
                     INSERT INTO reports (
