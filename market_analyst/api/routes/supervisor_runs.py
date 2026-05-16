@@ -6,12 +6,24 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import FileResponse
 
 from market_analyst.api.dependencies import get_settings
-from market_analyst.api.schemas import SupervisorRunCreateRequest, SupervisorRunResponse
+from market_analyst.api.schemas import (
+    SupervisorRunChatRequest,
+    SupervisorRunChatResponse,
+    SupervisorRunCreateRequest,
+    SupervisorRunResponse,
+)
 from market_analyst.config.settings import PROJECT_ROOT, Settings
 from market_analyst.repositories.companies import get_company
 from market_analyst.repositories.documents import get_document
 from market_analyst.repositories.supervisor_runs import create_supervisor_run, get_supervisor_run, list_supervisor_runs
+from market_analyst.services.supervisor_chat import run_supervisor_chat_turn
 from market_analyst.services.supervisor_runs import execute_supervisor_run
+from market_analyst.types.supervisor import SupervisorAnalysisResult, SupervisorRatingComponent
+from market_analyst.types.supervisor_chat import (
+    SupervisorChatContext,
+    SupervisorChatMessage as DomainSupervisorChatMessage,
+    SupervisorChatRequest as DomainSupervisorChatRequest,
+)
 
 
 router = APIRouter(prefix="/supervisor-runs", tags=["supervisor-runs"])
@@ -60,6 +72,34 @@ def get_supervisor_run_status(
     return run
 
 
+@router.post("/{run_id}/chat", response_model=SupervisorRunChatResponse)
+def post_supervisor_run_chat(
+    run_id: str,
+    request: SupervisorRunChatRequest,
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object]:
+    run = get_supervisor_run(settings, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Supervisor run not found")
+    if str(run.get("status")) != "completed":
+        raise HTTPException(status_code=409, detail="Supervisor chat is available only after the run completes")
+
+    response = run_supervisor_chat_turn(
+        settings,
+        DomainSupervisorChatRequest(
+            context=_build_chat_context(run),
+            message=request.message,
+            history=[DomainSupervisorChatMessage(role=item.role, content=item.content) for item in request.history],
+            max_history_messages=request.max_history_messages,
+        ),
+    )
+    return {
+        "answer": response.answer,
+        "history": [{"role": item.role, "content": item.content} for item in response.history],
+        "toolNames": response.tool_names,
+    }
+
+
 @router.get("/{run_id}/technical-chart")
 def get_supervisor_run_technical_chart(
     run_id: str,
@@ -88,3 +128,52 @@ def get_supervisor_run_technical_chart(
     elif file_path.suffix.lower() == ".webp":
         media_type = "image/webp"
     return FileResponse(path=file_path, media_type=media_type, filename=file_path.name)
+
+
+def _build_chat_context(run: dict[str, object]) -> SupervisorChatContext:
+    return SupervisorChatContext(
+        company_name=str(run.get("company_name") or run.get("companyName") or ""),
+        ticker=str(run.get("yahoo_finance_ticker") or run.get("yahooFinanceTicker") or run.get("ticker") or ""),
+        sector=str(run["sector"]) if isinstance(run.get("sector"), str) else None,
+        supervisor_result=_parse_supervisor_result(run, run.get("supervisor")),
+    )
+
+
+def _parse_supervisor_result(run: dict[str, object], value: object) -> SupervisorAnalysisResult | None:
+    if not isinstance(value, dict):
+        return None
+
+    final_rating = value.get("final_rating")
+    summary = value.get("summary")
+    components_raw = value.get("components")
+    if not isinstance(final_rating, int) or not isinstance(summary, str) or not isinstance(components_raw, list):
+        return None
+
+    components: list[SupervisorRatingComponent] = []
+    for item in components_raw:
+        if not isinstance(item, dict):
+            continue
+        weight = item.get("weight")
+        components.append(
+            SupervisorRatingComponent(
+                name=str(item.get("name") or "unknown"),
+                rating=item.get("rating") if isinstance(item.get("rating"), int) else None,
+                weight=float(weight) if isinstance(weight, (float, int)) else 0.0,
+                rationale=str(item.get("rationale") or ""),
+            )
+        )
+
+    return SupervisorAnalysisResult(
+        company_name=str(
+            value.get("company_name")
+            or value.get("companyName")
+            or run.get("company_name")
+            or run.get("companyName")
+            or ""
+        ),
+        ticker=str(value.get("ticker") or run.get("yahoo_finance_ticker") or run.get("yahooFinanceTicker") or run.get("ticker") or ""),
+        final_rating=final_rating,
+        summary=summary,
+        components=components,
+        metadata=value.get("metadata") if isinstance(value.get("metadata"), dict) else {},
+    )

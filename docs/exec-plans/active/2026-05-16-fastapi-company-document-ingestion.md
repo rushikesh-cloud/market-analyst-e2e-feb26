@@ -11,7 +11,7 @@ Expose the first production-facing FastAPI backend APIs for company master data 
 - Store uploaded files under local `uploads/documents/` for the first slice.
 - Run document ingestion asynchronously through FastAPI `BackgroundTasks`.
 - Sync ingestion stage, page count, processed pages, chunk count, vector IDs, report rows, and failures back to the document row.
-- Keep workflow, supervisor run, and chat screens mock-driven until their API contracts are implemented.
+- Keep workflow and supervisor-run transport mock-driven until their API contracts are implemented. The follow-up chat screen now has its own backend contract and should no longer use a mock reply path.
 
 ## Verification
 

@@ -1,4 +1,12 @@
-import type { Company, CompanyDraft, CompanyUpdateDraft, SupervisorRun, UploadedDocument } from "./types";
+import type {
+  Company,
+  CompanyDraft,
+  CompanyUpdateDraft,
+  SupervisorRun,
+  SupervisorRunChatRequest,
+  SupervisorRunChatResponse,
+  UploadedDocument,
+} from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -66,5 +74,12 @@ export function createSupervisorRun(companyId: string, documentId: string): Prom
   return request<SupervisorRun>("/api/supervisor-runs", {
     method: "POST",
     body: JSON.stringify({ companyId, documentId }),
+  });
+}
+
+export function chatWithSupervisorRun(runId: string, payload: SupervisorRunChatRequest): Promise<SupervisorRunChatResponse> {
+  return request<SupervisorRunChatResponse>(`/api/supervisor-runs/${runId}/chat`, {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }

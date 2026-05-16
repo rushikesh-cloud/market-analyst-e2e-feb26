@@ -68,6 +68,23 @@ class SupervisorRunCreateRequest(ApiModel):
     document_id: UUID = Field(alias="documentId")
 
 
+class SupervisorChatMessage(ApiModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class SupervisorRunChatRequest(ApiModel):
+    message: str
+    history: list[SupervisorChatMessage] = Field(default_factory=list)
+    max_history_messages: int = Field(default=12, alias="maxHistoryMessages")
+
+
+class SupervisorRunChatResponse(ApiModel):
+    answer: str
+    history: list[SupervisorChatMessage]
+    tool_names: list[str] = Field(default_factory=list, alias="toolNames")
+
+
 class SupervisorRunResponse(ApiModel):
     id: UUID
     company_id: UUID = Field(alias="companyId")

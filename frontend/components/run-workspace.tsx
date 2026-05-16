@@ -8,7 +8,7 @@ import { ChatPanel } from "@/components/chat-panel";
 import { RunTimeline } from "@/components/run-timeline";
 import { SupervisorPanel } from "@/components/supervisor-panel";
 import { getSupervisorRun, getSupervisorRunTechnicalChartUrl } from "@/lib/api";
-import { baseAgentOutputs, mockChatMessages, timelineSteps } from "@/lib/mock-data";
+import { baseAgentOutputs, timelineSteps } from "@/lib/mock-data";
 import type { AgentKey, AgentOutput, SourceReference, SupervisorOutput, SupervisorResult, SupervisorRun, WorkerResult } from "@/lib/types";
 
 
@@ -138,7 +138,7 @@ export function RunWorkspace({ runId }: { runId: string }) {
           <SupervisorPanel output={supervisor} />
         </div>
         <div className="xl:sticky xl:top-6 xl:self-start">
-          <ChatPanel enabled={run.status === "completed"} initialMessages={mockChatMessages} />
+          <ChatPanel runId={runId} enabled={run.status === "completed"} initialMessages={[]} />
         </div>
       </div>
     </div>

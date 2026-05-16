@@ -12,6 +12,7 @@ from market_analyst.api.routes import companies as companies_route
 from market_analyst.api.routes import documents as documents_route
 from market_analyst.api.routes import supervisor_runs as supervisor_runs_route
 from market_analyst.config.settings import Settings
+from market_analyst.types.supervisor_chat import SupervisorChatMessage, SupervisorChatResponse
 
 
 NOW = datetime(2026, 5, 16, 12, 0, tzinfo=UTC)
@@ -98,6 +99,25 @@ def _supervisor_run_row() -> dict[str, object]:
         "created_at": NOW,
         "updated_at": NOW,
     }
+
+
+def _completed_supervisor_run_row() -> dict[str, object]:
+    row = _supervisor_run_row()
+    row["status"] = "completed"
+    row["final_rating"] = 74
+    row["supervisor"] = {
+        "company_name": "Reliance Industries",
+        "ticker": "RELIANCE.NS",
+        "final_rating": 74,
+        "summary": "Overall constructive.",
+        "components": [
+            {"name": "fundamental", "rating": 80, "weight": 0.45, "rationale": "solid"},
+            {"name": "technical", "rating": 72, "weight": 0.30, "rationale": "steady trend"},
+            {"name": "news", "rating": 65, "weight": 0.25, "rationale": "mixed sentiment"},
+        ],
+        "metadata": {"weights": {"fundamental": 0.45, "technical": 0.30, "news": 0.25}},
+    }
+    return row
 
 
 def _supervisor_run_with_chart(chart_path: str) -> dict[str, object]:
@@ -243,3 +263,70 @@ def test_supervisor_run_chart_route_returns_file(monkeypatch, tmp_path) -> None:
     app.dependency_overrides.clear()
     assert response.status_code == 200
     assert response.content == b"png"
+
+
+def test_supervisor_run_chat_returns_answer_and_history(monkeypatch, tmp_path) -> None:
+    settings = _settings(tmp_path)
+    app.dependency_overrides[dependencies.get_settings] = lambda: settings
+    monkeypatch.setattr(
+        supervisor_runs_route,
+        "get_supervisor_run",
+        lambda passed_settings, run_id: _completed_supervisor_run_row(),
+    )
+
+    captured: dict[str, object] = {}
+
+    def fake_chat(settings_arg, request):
+        captured["message"] = request.message
+        captured["company_name"] = request.context.company_name
+        captured["ticker"] = request.context.ticker
+        captured["history"] = request.history
+        return SupervisorChatResponse(
+            answer="Momentum remains constructive.",
+            history=[
+                SupervisorChatMessage(role="user", content="What changed in technicals?"),
+                SupervisorChatMessage(role="assistant", content="Momentum remains constructive."),
+            ],
+            tool_names=["ask_technical_agent"],
+        )
+
+    monkeypatch.setattr(supervisor_runs_route, "run_supervisor_chat_turn", fake_chat)
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/supervisor-runs/351f4fd0-d620-4fb3-9ff0-5449283310cd/chat",
+        json={
+            "message": "What changed in technicals?",
+            "history": [],
+            "maxHistoryMessages": 8,
+        },
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json()["answer"] == "Momentum remains constructive."
+    assert response.json()["toolNames"] == ["ask_technical_agent"]
+    assert captured["message"] == "What changed in technicals?"
+    assert captured["company_name"] == "Reliance Industries"
+    assert captured["ticker"] == "RELIANCE.NS"
+    assert captured["history"] == []
+
+
+def test_supervisor_run_chat_requires_completed_run(monkeypatch, tmp_path) -> None:
+    settings = _settings(tmp_path)
+    app.dependency_overrides[dependencies.get_settings] = lambda: settings
+    monkeypatch.setattr(
+        supervisor_runs_route,
+        "get_supervisor_run",
+        lambda passed_settings, run_id: _supervisor_run_row(),
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/supervisor-runs/351f4fd0-d620-4fb3-9ff0-5449283310cd/chat",
+        json={"message": "What changed?", "history": []},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 409
+    assert "available only after the run completes" in response.text

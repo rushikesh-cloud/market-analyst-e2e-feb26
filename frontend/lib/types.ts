@@ -145,6 +145,18 @@ export type ChatMessage = {
   content: string;
 };
 
+export type SupervisorRunChatRequest = {
+  message: string;
+  history: Array<Pick<ChatMessage, "role" | "content">>;
+  maxHistoryMessages?: number;
+};
+
+export type SupervisorRunChatResponse = {
+  answer: string;
+  history: Array<Pick<ChatMessage, "role" | "content">>;
+  toolNames: string[];
+};
+
 export type RunEvent =
   | { type: "run_started"; at: number }
   | { type: "agent_started"; at: number; agent: AgentKey }
