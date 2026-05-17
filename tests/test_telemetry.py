@@ -1,5 +1,12 @@
 from market_analyst.config.settings import Settings
 from market_analyst import telemetry
+from market_analyst.services.agents.fundamental import run_fundamental_analysis_agent
+from market_analyst.services.agents.news import run_news_analysis_agent
+from market_analyst.services.agents.technical import analyze_technical_chart, run_technical_analysis_agent
+from market_analyst.services.agents.technical_v2 import analyze_technical_chart_v2_artifact, run_technical_analysis_agent_v2
+from market_analyst.services.supervisor import run_supervisor_agent
+from market_analyst.services.supervisor_chat import run_supervisor_chat_turn
+from market_analyst.services.supervisor_runs import execute_supervisor_run
 
 
 def _build_settings(**overrides) -> Settings:
@@ -99,3 +106,20 @@ def test_invoke_agent_with_tracing_passes_built_config(monkeypatch) -> None:
         "run_name": "supervisor-chat-agent",
         "tags": ["agent", "supervisor"],
     }
+
+
+def test_agent_entrypoints_are_opik_tracked() -> None:
+    tracked_functions = [
+        run_fundamental_analysis_agent,
+        run_news_analysis_agent,
+        run_technical_analysis_agent,
+        analyze_technical_chart,
+        run_technical_analysis_agent_v2,
+        analyze_technical_chart_v2_artifact,
+        run_supervisor_agent,
+        run_supervisor_chat_turn,
+        execute_supervisor_run,
+    ]
+
+    for function in tracked_functions:
+        assert hasattr(function, "__wrapped__"), function.__name__

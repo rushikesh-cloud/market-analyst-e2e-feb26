@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import opik
 from langchain.agents import create_agent
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
@@ -130,6 +131,7 @@ def build_technical_analysis_v2_agent(
     return agent, runtime_state
 
 
+@opik.track(name="technical-analysis-agent-v2", type="general", tags=["agent", "technical", "technical-v2"])
 def run_technical_analysis_agent_v2(
     settings: Settings,
     request: TechnicalAnalysisV2Request,
@@ -184,6 +186,7 @@ def build_technical_analysis_v2_prompt(*, request: TechnicalAnalysisV2Request, q
     )
 
 
+@opik.track(name="technical-chart-analysis-v2", type="llm", tags=["sub-agent", "technical", "technical-v2", "multimodal"])
 def analyze_technical_chart_v2_artifact(
     settings: Settings,
     *,

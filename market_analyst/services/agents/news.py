@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import opik
 from langchain.agents import create_agent
 
 from market_analyst.config.settings import Settings
@@ -71,6 +72,7 @@ def build_news_analysis_agent(
     return create_agent(model=model, tools=[tavily_search], system_prompt=system_prompt)
 
 
+@opik.track(name="news-analysis-agent", type="general", tags=["agent", "news"])
 def run_news_analysis_agent(settings: Settings, request: NewsAnalysisRequest) -> NewsAnalysisResult:
     agent = build_news_analysis_agent(
         settings,

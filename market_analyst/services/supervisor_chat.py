@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
+import opik
 from langchain.agents import create_agent
 from langchain_core.tools import BaseTool, tool
 
@@ -101,6 +102,7 @@ def build_supervisor_chat_tools(settings: Settings, context: SupervisorChatConte
     return [ask_fundamental_agent, ask_technical_agent, ask_news_agent]
 
 
+@opik.track(name="supervisor-chat-agent", type="general", tags=["agent", "supervisor", "chat"])
 def run_supervisor_chat_turn(settings: Settings, request: SupervisorChatRequest) -> SupervisorChatResponse:
     agent = build_supervisor_chat_agent(settings=settings, context=request.context)
     messages = build_supervisor_chat_messages(request)

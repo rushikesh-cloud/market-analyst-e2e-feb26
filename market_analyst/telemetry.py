@@ -5,7 +5,9 @@ from collections.abc import Mapping, Sequence
 import logging
 from typing import Any
 
-from market_analyst.config.settings import Settings
+from market_analyst.config.settings import Settings, load_env_file
+
+load_env_file()
 
 try:
     from opik.integrations.langchain import OpikTracer

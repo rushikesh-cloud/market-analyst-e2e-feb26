@@ -4,6 +4,8 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+import opik
+
 from market_analyst.config.settings import Settings
 from market_analyst.repositories.companies import get_company
 from market_analyst.repositories.documents import get_document
@@ -17,6 +19,7 @@ from market_analyst.types.news import NewsAnalysisRequest
 from market_analyst.types.technical import TechnicalAnalysisRequest
 
 
+@opik.track(name="execute-supervisor-run", type="general", tags=["agent", "supervisor", "orchestration"])
 def execute_supervisor_run(settings: Settings, run_id: str) -> None:
     run = get_supervisor_run(settings, run_id)
     if run is None:

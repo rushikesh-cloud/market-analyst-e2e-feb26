@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import opik
+
 from market_analyst.config.settings import Settings
 from market_analyst.services.agents.fundamental import run_fundamental_analysis_agent
 from market_analyst.services.agents.news import run_news_analysis_agent
@@ -22,6 +24,7 @@ DEFAULT_SUPERVISOR_WEIGHTS = {
 }
 
 
+@opik.track(name="supervisor-agent", type="general", tags=["agent", "supervisor"])
 def run_supervisor_agent(
     settings: Settings,
     request: SupervisorAnalysisRequest,

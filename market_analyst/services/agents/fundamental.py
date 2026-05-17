@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import opik
+
 from market_analyst.config.settings import Settings
 from market_analyst.repositories.vector_db import hybrid_search
 from market_analyst.services.agent import build_market_analysis_agent
@@ -57,6 +59,7 @@ def build_fundamental_analysis_agent(
     )
 
 
+@opik.track(name="fundamental-analysis-agent", type="general", tags=["agent", "fundamental"])
 def run_fundamental_analysis_agent(
     settings: Settings,
     request: FundamentalAnalysisRequest,

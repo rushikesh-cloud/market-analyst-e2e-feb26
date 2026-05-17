@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 from pathlib import Path
 
+import opik
 from langchain_core.messages import HumanMessage
 
 from market_analyst.config.settings import Settings
@@ -28,6 +29,7 @@ DEFAULT_TECHNICAL_QUESTION = (
 )
 
 
+@opik.track(name="technical-analysis-agent", type="general", tags=["agent", "technical"])
 def run_technical_analysis_agent(
     settings: Settings,
     request: TechnicalAnalysisRequest,
@@ -50,6 +52,7 @@ def run_technical_analysis_agent(
     )
 
 
+@opik.track(name="technical-chart-analysis", type="llm", tags=["sub-agent", "technical", "multimodal"])
 def analyze_technical_chart(
     settings: Settings,
     *,
