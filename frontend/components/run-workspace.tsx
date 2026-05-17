@@ -61,10 +61,15 @@ export function RunWorkspace({ runId }: { runId: string }) {
     if (!run) return;
     const startedAt = new Date(run.createdAt).getTime();
     if (Number.isNaN(startedAt)) return;
+    const endedAt = new Date(run.updatedAt).getTime();
+    const isRunning = run.status === "running";
+    const referenceTime = !Number.isNaN(endedAt) && !isRunning ? endedAt : Date.now();
+    setElapsed(Math.max(0, Math.floor((referenceTime - startedAt) / 1000)));
+    if (!isRunning) return;
+
     const intervalId = window.setInterval(() => {
       setElapsed(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
     }, 1000);
-    setElapsed(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
     return () => window.clearInterval(intervalId);
   }, [run]);
 
