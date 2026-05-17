@@ -180,13 +180,15 @@ if (-not $existingApp) {
         --secrets $initialSecrets `
         --env-vars $initialEnvVars | Out-Null
 } else {
+    if ($initialSecrets.Count -gt 0) {
+        az containerapp secret set -n $ContainerAppName -g $ResourceGroup --secrets $initialSecrets | Out-Null
+    }
     az containerapp identity assign -n $ContainerAppName -g $ResourceGroup --system-assigned | Out-Null
     az containerapp update `
         -n $ContainerAppName `
         -g $ResourceGroup `
         --image $imageName `
-        --replace-env-vars $initialEnvVars `
-        --secrets $initialSecrets | Out-Null
+        --replace-env-vars $initialEnvVars | Out-Null
 }
 
 $principalId = az containerapp show -n $ContainerAppName -g $ResourceGroup --query "identity.principalId" -o tsv
@@ -206,7 +208,10 @@ $finalSecrets = [System.Collections.Generic.List[string]]::new()
 $finalEnvVars = New-EnvVarList -FrontendUrl $frontendUrl -SecretList $finalSecrets -AuthSessionSecret $authSessionSecret
 
 Write-Host "Updating public URL-dependent settings..."
-az containerapp update -n $ContainerAppName -g $ResourceGroup --replace-env-vars $finalEnvVars --secrets $finalSecrets | Out-Null
+if ($finalSecrets.Count -gt 0) {
+    az containerapp secret set -n $ContainerAppName -g $ResourceGroup --secrets $finalSecrets | Out-Null
+}
+az containerapp update -n $ContainerAppName -g $ResourceGroup --replace-env-vars $finalEnvVars | Out-Null
 
 Write-Host ""
 Write-Host "Deployment complete"
