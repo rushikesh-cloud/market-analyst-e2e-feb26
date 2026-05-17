@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from market_analyst.api.dependencies import get_settings
 from market_analyst.api.schemas import (
@@ -16,7 +17,7 @@ from market_analyst.config.settings import PROJECT_ROOT, Settings
 from market_analyst.repositories.companies import get_company
 from market_analyst.repositories.documents import get_document
 from market_analyst.repositories.supervisor_runs import create_supervisor_run, get_supervisor_run, list_supervisor_runs
-from market_analyst.services.supervisor_chat import run_supervisor_chat_turn
+from market_analyst.services.supervisor_chat import run_supervisor_chat_turn, stream_supervisor_chat_turn
 from market_analyst.services.supervisor_runs import execute_supervisor_run
 from market_analyst.types.supervisor import SupervisorAnalysisResult, SupervisorRatingComponent
 from market_analyst.types.supervisor_chat import (
@@ -98,6 +99,35 @@ def post_supervisor_run_chat(
         "history": [{"role": item.role, "content": item.content} for item in response.history],
         "toolNames": response.tool_names,
     }
+
+
+@router.post("/{run_id}/chat/stream")
+def post_supervisor_run_chat_stream(
+    run_id: str,
+    request: SupervisorRunChatRequest,
+    settings: Settings = Depends(get_settings),
+) -> StreamingResponse:
+    run = get_supervisor_run(settings, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Supervisor run not found")
+    if str(run.get("status")) != "completed":
+        raise HTTPException(status_code=409, detail="Supervisor chat is available only after the run completes")
+
+    domain_request = DomainSupervisorChatRequest(
+        context=_build_chat_context(run),
+        message=request.message,
+        history=[DomainSupervisorChatMessage(role=item.role, content=item.content) for item in request.history],
+        max_history_messages=request.max_history_messages,
+    )
+
+    def event_stream():
+        try:
+            for event in stream_supervisor_chat_turn(settings, domain_request):
+                yield json.dumps(event) + "\n"
+        except Exception as exc:
+            yield json.dumps({"type": "error", "message": str(exc)}) + "\n"
+
+    return StreamingResponse(event_stream(), media_type="application/x-ndjson")
 
 
 @router.get("/{run_id}/technical-chart")

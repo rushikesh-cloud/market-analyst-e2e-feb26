@@ -361,3 +361,64 @@ def test_supervisor_run_chat_requires_completed_run(monkeypatch, tmp_path) -> No
     app.dependency_overrides.clear()
     assert response.status_code == 409
     assert "available only after the run completes" in response.text
+
+
+def test_supervisor_run_chat_stream_returns_ndjson_events(monkeypatch, tmp_path) -> None:
+    settings = _settings(tmp_path)
+    app.dependency_overrides[dependencies.get_settings] = lambda: settings
+    app.dependency_overrides[dependencies.require_authenticated_user] = _authenticate
+    monkeypatch.setattr(
+        supervisor_runs_route,
+        "get_supervisor_run",
+        lambda passed_settings, run_id: _completed_supervisor_run_row(),
+    )
+
+    def fake_stream(settings_arg, request):
+        assert request.message == "Stream the answer"
+        yield {"type": "token", "content": "Momentum "}
+        yield {
+            "type": "final",
+            "answer": "Momentum improved.",
+            "history": [
+                {"role": "user", "content": "Stream the answer"},
+                {"role": "assistant", "content": "Momentum improved."},
+            ],
+            "toolNames": ["ask_technical_agent"],
+        }
+
+    monkeypatch.setattr(supervisor_runs_route, "stream_supervisor_chat_turn", fake_stream)
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/supervisor-runs/351f4fd0-d620-4fb3-9ff0-5449283310cd/chat/stream",
+        json={"message": "Stream the answer", "history": []},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    lines = [line for line in response.text.strip().splitlines() if line]
+    assert '"type": "token"' in lines[0]
+    assert '"content": "Momentum "' in lines[0]
+    assert '"type": "final"' in lines[1]
+    assert '"answer": "Momentum improved."' in lines[1]
+
+
+def test_supervisor_run_chat_stream_requires_completed_run(monkeypatch, tmp_path) -> None:
+    settings = _settings(tmp_path)
+    app.dependency_overrides[dependencies.get_settings] = lambda: settings
+    app.dependency_overrides[dependencies.require_authenticated_user] = _authenticate
+    monkeypatch.setattr(
+        supervisor_runs_route,
+        "get_supervisor_run",
+        lambda passed_settings, run_id: _supervisor_run_row(),
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/supervisor-runs/351f4fd0-d620-4fb3-9ff0-5449283310cd/chat/stream",
+        json={"message": "Stop if needed", "history": []},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 409
+    assert "available only after the run completes" in response.text

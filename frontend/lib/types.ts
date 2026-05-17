@@ -193,6 +193,11 @@ export type SupervisorRunChatResponse = {
   toolNames: string[];
 };
 
+export type SupervisorRunChatStreamEvent =
+  | { type: "token"; content: string }
+  | { type: "final"; answer: string; history: Array<Pick<ChatMessage, "role" | "content">>; toolNames: string[] }
+  | { type: "error"; message: string };
+
 export type RunEvent =
   | { type: "run_started"; at: number }
   | { type: "agent_started"; at: number; agent: AgentKey }

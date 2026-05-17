@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Send } from "lucide-react";
-import { chatWithSupervisorRun } from "@/lib/api";
+import { Send, Square } from "lucide-react";
+import { ApiError, streamSupervisorRunChat } from "@/lib/api";
 import { MarkdownMessage } from "@/components/markdown-message";
 import type { ChatMessage } from "@/lib/types";
 
@@ -46,6 +46,8 @@ export function ChatPanel({
   const [error, setError] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const wasEnabledRef = useRef(enabled);
+  const committedHistoryRef = useRef<Array<Pick<ChatMessage, "role" | "content">>>(initialMessages.map(({ role, content }) => ({ role, content })));
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const wasEnabled = wasEnabledRef.current;
@@ -53,8 +55,11 @@ export function ChatPanel({
       setMessages([]);
       setPending(false);
       setError(null);
+      committedHistoryRef.current = [];
+      abortControllerRef.current = null;
     } else if (!wasEnabled && initialMessages.length > 0) {
       setMessages(initialMessages);
+      committedHistoryRef.current = initialMessages.map(({ role, content }) => ({ role, content }));
     }
     wasEnabledRef.current = enabled;
   }, [enabled, initialMessages]);
@@ -71,30 +76,69 @@ export function ChatPanel({
     event.preventDefault();
     const question = draft.trim();
     if (!question || !enabled || pending) return;
-    const nextUserMessage: ChatMessage = { id: `u-${Date.now()}`, role: "user", content: question };
+    const requestId = Date.now();
+    const userMessageId = `u-${requestId}`;
+    const assistantMessageId = `a-${requestId}`;
+    const nextUserMessage: ChatMessage = { id: userMessageId, role: "user", content: question };
+    const nextAssistantMessage: ChatMessage = { id: assistantMessageId, role: "assistant", content: "" };
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     setDraft("");
     setError(null);
     setPending(true);
-    setMessages((current) => [...current, nextUserMessage]);
+    setMessages((current) => [...current, nextUserMessage, nextAssistantMessage]);
 
     try {
-      const currentHistory = [...messages, nextUserMessage].map(({ role, content }) => ({ role, content }));
-      const response = await chatWithSupervisorRun(runId, {
+      await streamSupervisorRunChat(
+        runId,
+        {
         message: question,
-        history: currentHistory.slice(0, -1),
-      });
-      setMessages(
-        response.history.map((item, index) => ({
-          id: `${item.role}-${index}-${Date.now()}`,
-          role: item.role,
-          content: item.content,
-        })),
+          history: committedHistoryRef.current,
+        },
+        {
+          signal: controller.signal,
+          onEvent: (streamEvent) => {
+            if (streamEvent.type === "token") {
+              setMessages((current) =>
+                current.map((message) =>
+                  message.id === assistantMessageId
+                    ? { ...message, content: message.content + streamEvent.content }
+                    : message,
+                ),
+              );
+              return;
+            }
+
+            if (streamEvent.type === "final") {
+              committedHistoryRef.current = streamEvent.history;
+              setMessages(
+                streamEvent.history.map((item, index) => ({
+                  id: `${item.role}-${requestId}-${index}`,
+                  role: item.role,
+                  content: item.content,
+                })),
+              );
+              return;
+            }
+
+            setError(streamEvent.message);
+          },
+        },
       );
     } catch (apiError) {
-      setError(apiError instanceof Error ? apiError.message : "Unable to get supervisor chat response");
+      if (apiError instanceof DOMException && apiError.name === "AbortError") {
+        setMessages((current) => current.filter((message) => message.id !== assistantMessageId || message.content.trim().length > 0));
+      } else {
+        setError(apiError instanceof ApiError ? apiError.message : apiError instanceof Error ? apiError.message : "Unable to get supervisor chat response");
+      }
     } finally {
+      abortControllerRef.current = null;
       setPending(false);
     }
+  }
+
+  function stopStreaming() {
+    abortControllerRef.current?.abort();
   }
 
   return (
@@ -130,18 +174,29 @@ export function ChatPanel({
         <input
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          disabled={!enabled || pending}
+          disabled={!enabled}
           placeholder={enabled ? "Ask follow-up" : "Available after supervisor"}
           className="min-w-0 flex-1 rounded-lg border border-line px-3 text-sm outline-none disabled:bg-slate-50"
         />
-        <button
-          type="submit"
-          disabled={!enabled || pending}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-ink text-white disabled:bg-slate-300"
-          aria-label="Send"
-        >
-          <Send size={16} />
-        </button>
+        {pending ? (
+          <button
+            type="button"
+            onClick={stopStreaming}
+            className="flex h-10 items-center gap-2 rounded-lg border border-line bg-panel px-3 text-sm font-medium text-slate-700"
+          >
+            <Square size={14} />
+            Stop
+          </button>
+        ) : (
+          <button
+            type="submit"
+            disabled={!enabled}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-ink text-white disabled:bg-slate-300"
+            aria-label="Send"
+          >
+            <Send size={16} />
+          </button>
+        )}
       </form>
     </section>
   );

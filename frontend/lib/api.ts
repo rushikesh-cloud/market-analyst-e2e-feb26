@@ -8,6 +8,7 @@ import type {
   SupervisorRun,
   SupervisorRunChatRequest,
   SupervisorRunChatResponse,
+  SupervisorRunChatStreamEvent,
   UploadedDocument,
 } from "./types";
 
@@ -129,4 +130,55 @@ export function chatWithSupervisorRun(runId: string, payload: SupervisorRunChatR
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export async function streamSupervisorRunChat(
+  runId: string,
+  payload: SupervisorRunChatRequest,
+  options: {
+    signal?: AbortSignal;
+    onEvent: (event: SupervisorRunChatStreamEvent) => void;
+  },
+): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/supervisor-runs/${runId}/chat/stream`, {
+    method: "POST",
+    credentials: "include",
+    signal: options.signal,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const message = await response.text();
+    throw new ApiError(response.status, message || `API request failed with ${response.status}`);
+  }
+  if (!response.body) {
+    throw new Error("Streaming response body is not available");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let newlineIndex = buffer.indexOf("\n");
+    while (newlineIndex >= 0) {
+      const line = buffer.slice(0, newlineIndex).trim();
+      buffer = buffer.slice(newlineIndex + 1);
+      if (line) {
+        options.onEvent(JSON.parse(line) as SupervisorRunChatStreamEvent);
+      }
+      newlineIndex = buffer.indexOf("\n");
+    }
+  }
+
+  const trailing = buffer.trim();
+  if (trailing) {
+    options.onEvent(JSON.parse(trailing) as SupervisorRunChatStreamEvent);
+  }
 }

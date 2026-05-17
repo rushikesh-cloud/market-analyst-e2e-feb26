@@ -193,7 +193,7 @@ def test_stream_supervisor_chat_turn_emits_tokens_and_final_history(monkeypatch)
 
     class FakeAgent:
         def stream(self, payload, stream_mode=None, version=None):
-            assert payload["messages"][-1]["content"] == "What changed?"
+            assert payload["messages"][-1]["content"] == "What changed technically for Reliance?"
             assert stream_mode == ["messages", "updates"]
             assert version == "v2"
             yield {"type": "messages", "data": (FakeChunk("Momentum "), {"langgraph_node": "model"})}
@@ -219,7 +219,7 @@ def test_stream_supervisor_chat_turn_emits_tokens_and_final_history(monkeypatch)
             settings=None,  # type: ignore[arg-type]
             request=SupervisorChatRequest(
                 context=SupervisorChatContext(company_name="Reliance", ticker="RELIANCE.NS"),
-                message="What changed?",
+                message="What changed technically for Reliance?",
                 history=[],
             ),
         )
@@ -231,6 +231,6 @@ def test_stream_supervisor_chat_turn_emits_tokens_and_final_history(monkeypatch)
     assert events[-1]["answer"] == "Momentum improved."
     assert events[-1]["toolNames"] == ["ask_technical_agent"]
     assert events[-1]["history"] == [
-        {"role": "user", "content": "What changed?"},
+        {"role": "user", "content": "What changed technically for Reliance?"},
         {"role": "assistant", "content": "Momentum improved."},
     ]
