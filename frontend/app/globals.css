@@ -70,3 +70,128 @@ textarea:focus-visible {
     opacity: 0;
   }
 }
+
+.markdown-message {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.markdown-message > :first-child {
+  margin-top: 0;
+}
+
+.markdown-message > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-message p,
+.markdown-message ul,
+.markdown-message ol,
+.markdown-message pre,
+.markdown-message blockquote,
+.markdown-message table {
+  margin: 0;
+}
+
+.markdown-message ul,
+.markdown-message ol {
+  padding-left: 1.15rem;
+}
+
+.markdown-message li + li {
+  margin-top: 0.2rem;
+}
+
+.markdown-message h1,
+.markdown-message h2,
+.markdown-message h3,
+.markdown-message h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  font-weight: 600;
+}
+
+.markdown-message h1:not(:first-child),
+.markdown-message h2:not(:first-child),
+.markdown-message h3:not(:first-child),
+.markdown-message h4:not(:first-child) {
+  margin-top: 0.2rem;
+}
+
+.markdown-message code {
+  border-radius: 0.35rem;
+  background: rgba(15, 23, 42, 0.08);
+  padding: 0.12rem 0.35rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.85em;
+}
+
+.markdown-message pre {
+  overflow-x: auto;
+  border-radius: 0.6rem;
+  background: #e2e8f0;
+  padding: 0.75rem 0.85rem;
+}
+
+.markdown-message pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.markdown-message a {
+  color: #1d4ed8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.markdown-message blockquote {
+  border-left: 3px solid #cbd5e1;
+  padding-left: 0.8rem;
+  color: #475569;
+}
+
+.markdown-message table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.markdown-message th,
+.markdown-message td {
+  border: 1px solid #cbd5e1;
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown-message th {
+  background: #e2e8f0;
+  font-weight: 600;
+}
+
+.markdown-message-inverted code {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.markdown-message-inverted pre {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.markdown-message-inverted a {
+  color: #dbeafe;
+}
+
+.markdown-message-inverted blockquote {
+  border-left-color: rgba(255, 255, 255, 0.28);
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.markdown-message-inverted th,
+.markdown-message-inverted td {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.markdown-message-inverted th {
+  background: rgba(255, 255, 255, 0.1);
+}

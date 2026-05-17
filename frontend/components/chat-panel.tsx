@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Send } from "lucide-react";
 import { chatWithSupervisorRun } from "@/lib/api";
+import { MarkdownMessage } from "@/components/markdown-message";
 import type { ChatMessage } from "@/lib/types";
 
 type TypingBubbleProps = {
@@ -110,7 +111,11 @@ export function ChatPanel({
                 message.role === "user" ? "ml-auto bg-ink text-white" : "bg-slate-50 text-slate-700"
               }`}
             >
-              {message.content}
+              {message.role === "assistant" ? (
+                <MarkdownMessage content={message.content} />
+              ) : (
+                <MarkdownMessage content={message.content} inverted />
+              )}
             </div>
           ))
         ) : (
