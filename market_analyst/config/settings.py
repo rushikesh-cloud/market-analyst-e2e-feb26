@@ -41,7 +41,9 @@ class Settings:
     azure_openai_version: str
     azure_openai_chat_deployment: str
     azure_openai_embedding_deployment: str
-    tavily_api_key: str
+    tavily_api_key: str = ""
+    azure_ai_project_endpoint: str = ""
+    document_intelligence_connection_verify: str = ""
     opik_api_key: str = ""
     opik_workspace: str = ""
     opik_project_name: str = "market-analyst"
@@ -177,6 +179,8 @@ def load_settings() -> Settings:
         ),
         azure_openai_embedding_deployment=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", ""),
         tavily_api_key=os.getenv("TAVILY_API_KEY", ""),
+        azure_ai_project_endpoint=os.getenv("AZURE_AI_PROJECT_ENDPOINT", ""),
+        document_intelligence_connection_verify=os.getenv("DOCUMENT_INTELLIGENCE_CONNECTION_VERIFY", ""),
         opik_api_key=os.getenv("OPIK_API_KEY", ""),
         opik_workspace=os.getenv("OPIK_WORKSPACE", ""),
         opik_project_name=os.getenv("OPIK_PROJECT_NAME", "market-analyst"),

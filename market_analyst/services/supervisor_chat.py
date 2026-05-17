@@ -6,6 +6,8 @@ from typing import Any
 
 import opik
 from langchain.agents import create_agent
+from langchain.agents.middleware import AgentMiddleware, before_agent
+from langchain.messages import AIMessage
 from langchain_core.tools import BaseTool, tool
 
 from market_analyst.config.settings import Settings
@@ -53,6 +55,16 @@ OUT_OF_SCOPE_MESSAGE = (
 FUTURE_RECOMMENDATION_NOTICE = (
     "Note: Any forward-looking suggestion here is based only on historical and currently available "
     "market information. Future outcomes can change quickly with market conditions."
+)
+
+PROMPT_INJECTION_MESSAGE = (
+    "I can't help with attempts to override instructions, reveal hidden prompts, or manipulate the "
+    "agent behavior. Ask a normal market-analysis question instead."
+)
+
+JAILBREAK_MESSAGE = (
+    "I can't help with requests to bypass safety controls or change the agent into an unrestricted "
+    "mode. Ask a normal market-analysis question instead."
 )
 
 MARKET_SCOPE_KEYWORDS = (
@@ -165,6 +177,46 @@ FUTURE_LOOKING_PATTERNS = (
     r"\bdownside\b",
 )
 
+PROMPT_INJECTION_PATTERNS = (
+    r"\bignore (all |any |the )?(previous|prior|above)? ?instructions\b",
+    r"\bdisregard (all |any |the )?(previous|prior|above)? ?instructions\b",
+    r"\boverride (all |any |the )?instructions\b",
+    r"\bforget (all |your |the )?instructions\b",
+    r"\breveal (the )?(system|developer|hidden) prompt\b",
+    r"\bshow (me )?(the )?(system|developer|hidden) prompt\b",
+    r"\bprint (the )?(system|developer) prompt\b",
+    r"\bwhat (are|is) (your|the) (system|developer) instructions\b",
+    r"\bprompt injection\b",
+)
+
+JAILBREAK_PATTERNS = (
+    r"\bjailbreak\b",
+    r"\bdeveloper mode\b",
+    r"\bunfiltered mode\b",
+    r"\bbypass (the )?(guardrails|safety|filters|restrictions)\b",
+    r"\bdisable (the )?(guardrails|safety|filters|restrictions)\b",
+    r"\bdo not follow (the )?(rules|instructions|guardrails)\b",
+    r"\bpretend to be (an )?(unfiltered|unrestricted) (assistant|agent)\b",
+    r"\bact as (an )?(unfiltered|unrestricted) (assistant|agent)\b",
+    r"\bact as dan\b",
+)
+
+
+@before_agent(can_jump_to=["end"], name="supervisor_chat_prompt_injection_guardrail")
+def supervisor_chat_prompt_injection_guardrail(state: dict[str, Any], runtime: Any) -> dict[str, Any] | None:
+    user_message = extract_latest_user_message(state.get("messages", []))
+    if not is_prompt_injection_attempt(user_message):
+        return None
+    return {"messages": [AIMessage(content=PROMPT_INJECTION_MESSAGE)], "jump_to": "end"}
+
+
+@before_agent(can_jump_to=["end"], name="supervisor_chat_jailbreak_guardrail")
+def supervisor_chat_jailbreak_guardrail(state: dict[str, Any], runtime: Any) -> dict[str, Any] | None:
+    user_message = extract_latest_user_message(state.get("messages", []))
+    if not is_jailbreak_attempt(user_message):
+        return None
+    return {"messages": [AIMessage(content=JAILBREAK_MESSAGE)], "jump_to": "end"}
+
 
 def build_supervisor_chat_agent(
     settings: Settings,
@@ -180,6 +232,34 @@ def build_supervisor_chat_agent(
         model=model,
         tools=build_supervisor_chat_tools(settings=settings, context=context),
         system_prompt=prompt,
+        middleware=build_supervisor_chat_middleware(settings),
+    )
+
+
+def build_supervisor_chat_middleware(settings: Settings) -> list[AgentMiddleware]:
+    middleware: list[AgentMiddleware] = [
+        supervisor_chat_prompt_injection_guardrail,
+        supervisor_chat_jailbreak_guardrail,
+    ]
+    prompt_shield = build_optional_azure_prompt_shield_middleware(settings)
+    if prompt_shield is not None:
+        middleware.append(prompt_shield)
+    return middleware
+
+
+def build_optional_azure_prompt_shield_middleware(settings: Settings) -> AgentMiddleware | None:
+    if not settings.azure_ai_project_endpoint:
+        return None
+
+    try:
+        from azure.identity import DefaultAzureCredential
+        from langchain_azure_ai.agents.middleware import AzurePromptShieldMiddleware
+    except ImportError:
+        return None
+
+    return AzurePromptShieldMiddleware(
+        project_endpoint=settings.azure_ai_project_endpoint,
+        credential=DefaultAzureCredential(),
     )
 
 
@@ -231,14 +311,14 @@ def build_supervisor_chat_tools(settings: Settings, context: SupervisorChatConte
 
 @opik.track(name="supervisor-chat-agent", type="general", tags=["agent", "supervisor", "chat"])
 def run_supervisor_chat_turn(settings: Settings, request: SupervisorChatRequest) -> SupervisorChatResponse:
-    if is_out_of_scope_market_question(request.message, request.context):
-        answer = OUT_OF_SCOPE_MESSAGE
+    guardrail_answer = evaluate_supervisor_chat_input_guardrails(request.message, request.context)
+    if guardrail_answer is not None:
         return SupervisorChatResponse(
-            answer=answer,
+            answer=guardrail_answer,
             history=append_short_term_history(
                 history=request.history,
                 user_message=request.message,
-                assistant_answer=answer,
+                assistant_answer=guardrail_answer,
                 max_history_messages=request.max_history_messages,
             ),
             tool_names=[],
@@ -277,17 +357,17 @@ def run_supervisor_chat_turn(settings: Settings, request: SupervisorChatRequest)
 
 
 def stream_supervisor_chat_turn(settings: Settings, request: SupervisorChatRequest) -> Iterator[dict[str, object]]:
-    if is_out_of_scope_market_question(request.message, request.context):
-        answer = OUT_OF_SCOPE_MESSAGE
+    guardrail_answer = evaluate_supervisor_chat_input_guardrails(request.message, request.context)
+    if guardrail_answer is not None:
         history = append_short_term_history(
             history=request.history,
             user_message=request.message,
-            assistant_answer=answer,
+            assistant_answer=guardrail_answer,
             max_history_messages=request.max_history_messages,
         )
         yield {
             "type": "final",
-            "answer": answer,
+            "answer": guardrail_answer,
             "history": [{"role": item.role, "content": item.content} for item in history],
             "toolNames": [],
             "guardrailTriggered": True,
@@ -542,6 +622,26 @@ def is_out_of_scope_market_question(message: str, context: SupervisorChatContext
     return True
 
 
+def evaluate_supervisor_chat_input_guardrails(message: str, context: SupervisorChatContext | None = None) -> str | None:
+    if context is not None and is_out_of_scope_market_question(message, context):
+        return OUT_OF_SCOPE_MESSAGE
+    if is_prompt_injection_attempt(message):
+        return PROMPT_INJECTION_MESSAGE
+    if is_jailbreak_attempt(message):
+        return JAILBREAK_MESSAGE
+    return None
+
+
+def is_prompt_injection_attempt(message: str) -> bool:
+    normalized = normalize_text(message)
+    return any(re.search(pattern, normalized) for pattern in PROMPT_INJECTION_PATTERNS)
+
+
+def is_jailbreak_attempt(message: str) -> bool:
+    normalized = normalize_text(message)
+    return any(re.search(pattern, normalized) for pattern in JAILBREAK_PATTERNS)
+
+
 def maybe_prepend_future_recommendation_notice(answer: str, user_message: str) -> str:
     if not answer.strip():
         return answer
@@ -566,6 +666,19 @@ def _context_scope_terms(context: SupervisorChatContext) -> tuple[str, ...]:
 
 def normalize_text(value: str) -> str:
     return " ".join(value.casefold().split())
+
+
+def extract_latest_user_message(messages: object) -> str:
+    if not isinstance(messages, list):
+        return ""
+
+    for message in reversed(messages):
+        role = getattr(message, "type", None) or getattr(message, "role", None)
+        if role == "human":
+            return extract_message_text(getattr(message, "content", ""))
+        if isinstance(message, dict) and message.get("role") == "user":
+            return extract_message_text(message.get("content", ""))
+    return ""
 
 
 def _format_worker_result(*, worker_name: str, rating: int | None, answer: str) -> str:
