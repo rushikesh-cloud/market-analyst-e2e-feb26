@@ -44,11 +44,18 @@ export function ChatPanel({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const wasEnabledRef = useRef(enabled);
 
   useEffect(() => {
-    setMessages(enabled ? initialMessages : []);
-    setPending(false);
-    setError(null);
+    const wasEnabled = wasEnabledRef.current;
+    if (!enabled) {
+      setMessages([]);
+      setPending(false);
+      setError(null);
+    } else if (!wasEnabled && initialMessages.length > 0) {
+      setMessages(initialMessages);
+    }
+    wasEnabledRef.current = enabled;
   }, [enabled, initialMessages]);
 
   useEffect(() => {
