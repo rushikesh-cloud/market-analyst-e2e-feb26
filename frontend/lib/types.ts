@@ -121,6 +121,64 @@ export type SourceReference = {
   href?: string;
 };
 
+export type FundamentalVisualSummary = {
+  stance?: string | null;
+  revenue_display?: string | null;
+  revenue_growth_pct?: number | null;
+  profit_margin_pct?: number | null;
+  debt_to_equity?: number | null;
+  cash_flow_view?: string | null;
+  valuation_view?: string | null;
+  top_positives?: string[];
+  top_risks?: string[];
+  watch_items?: string[];
+};
+
+export type TechnicalVisualSummary = {
+  stance?: string | null;
+  trend_state?: string | null;
+  momentum_state?: string | null;
+  setup?: string | null;
+  current_price?: number | null;
+  rsi?: number | null;
+  distance_to_ma20_pct?: number | null;
+  distance_to_ma50_pct?: number | null;
+  macd_signal_state?: string | null;
+  support_levels?: string[];
+  resistance_levels?: string[];
+  top_risks?: string[];
+  watch_items?: string[];
+};
+
+export type NewsVisualSummary = {
+  stance?: string | null;
+  sentiment_score?: number | null;
+  positive_count?: number | null;
+  negative_count?: number | null;
+  positive_points?: string[];
+  negative_points?: string[];
+  sector_tailwinds?: string[];
+  sector_headwinds?: string[];
+  watch_items?: string[];
+};
+
+export type SupervisorVisualComponent = {
+  name: string;
+  rating?: number | null;
+  weight_pct: number;
+  contribution_pct?: number | null;
+};
+
+export type SupervisorVisualSummary = {
+  stance?: string | null;
+  confidence?: string | null;
+  decision?: string | null;
+  top_positives?: string[];
+  top_risks?: string[];
+  watch_items?: string[];
+  component_contributions?: SupervisorVisualComponent[];
+};
+
 export type WorkerResult = {
   answer?: string;
   rating?: number | null;
@@ -129,6 +187,8 @@ export type WorkerResult = {
   company_name?: string;
   sector?: string | null;
   chart_path?: string | null;
+  structured_output?: Record<string, unknown>;
+  visual_summary?: FundamentalVisualSummary | TechnicalVisualSummary | NewsVisualSummary | null;
   [key: string]: unknown;
 };
 
@@ -137,6 +197,8 @@ export type SupervisorResult = {
   summary?: string;
   components?: Array<{ name: string; rating?: number | null; weight: number; rationale: string }>;
   metadata?: { weights?: Partial<Record<AgentKey, number>> };
+  visual_summary?: SupervisorVisualSummary | null;
+  structured_output?: Record<string, unknown>;
   [key: string]: unknown;
 };
 

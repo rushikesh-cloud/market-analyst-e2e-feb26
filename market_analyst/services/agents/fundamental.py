@@ -7,7 +7,8 @@ import opik
 from market_analyst.config.settings import Settings
 from market_analyst.repositories.vector_db import hybrid_search
 from market_analyst.services.agent import build_market_analysis_agent
-from market_analyst.services.scoring import extract_rating_from_text
+from market_analyst.services.scoring import extract_rating_from_text, parse_json_object
+from market_analyst.services.visual_summaries import build_fundamental_visual_summary
 from market_analyst.telemetry import invoke_agent_with_tracing
 from market_analyst.types.fundamental import FundamentalAnalysisRequest, FundamentalAnalysisResult, FundamentalSourceReference
 
@@ -27,10 +28,17 @@ Return only valid JSON with this schema:
 {
   "company_name": "string",
   "ticker": "string or null",
+  "stance": "string",
   "fundamental_rating": 1,
+  "revenue": "string or null",
+  "revenue_growth_pct": 0.0,
+  "profit_margin_pct": 0.0,
+  "debt_to_equity": 0.0,
   "growth": ["string"],
   "cash_flow": ["string"],
   "debt_and_balance_sheet": ["string"],
+  "watch_items": ["string"],
+  "valuation_view": "string",
   "risks": ["string"],
   "rationale": "string"
 }
@@ -85,6 +93,7 @@ def run_fundamental_analysis_agent(
         },
     )
     answer = extract_final_message_content(result)
+    payload = parse_json_object(answer)
     rating = extract_rating_from_text(answer, keys=("fundamental_rating", "rating", "score"))
     sources = compile_fundamental_sources(
         settings,
@@ -100,6 +109,8 @@ def run_fundamental_analysis_agent(
         answer=answer,
         rating=rating,
         sources=sources,
+        structured_output=payload,
+        visual_summary=build_fundamental_visual_summary(payload, rating=rating),
     )
 
 

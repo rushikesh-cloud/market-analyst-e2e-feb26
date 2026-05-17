@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { BarChart3, Loader2, Maximize2, X } from "lucide-react";
 import type { AgentOutput } from "@/lib/types";
@@ -29,7 +30,14 @@ export function FloatingChartWindow({ output, chartReady }: { output: AgentOutpu
           <div className="grid gap-3 p-3">
             <div className="h-48 overflow-hidden rounded-lg border border-line bg-slate-50 p-3">
               {chartReady && output.chartUrl ? (
-                <img src={output.chartUrl} alt="Technical chart" className="h-full w-full object-contain" />
+                <Image
+                  src={output.chartUrl}
+                  alt="Technical chart"
+                  width={1200}
+                  height={800}
+                  unoptimized
+                  className="h-full w-full object-contain"
+                />
               ) : (
                 <div className="flex h-full items-center justify-center gap-2 text-xs font-medium text-muted">
                   <Loader2 size={14} className="animate-spin" />
