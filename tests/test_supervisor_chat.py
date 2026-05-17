@@ -4,7 +4,13 @@ from market_analyst.services.supervisor_chat import (
     build_supervisor_chat_messages,
     build_supervisor_chat_prompt,
     build_supervisor_chat_tools,
+    extract_message_text,
     extract_tool_names,
+    is_future_recommendation_request,
+    is_out_of_scope_market_question,
+    maybe_prepend_future_recommendation_notice,
+    run_supervisor_chat_turn,
+    stream_supervisor_chat_turn,
     summarize_supervisor_snapshot,
 )
 from market_analyst.types.fundamental import FundamentalAnalysisResult
@@ -137,3 +143,94 @@ def test_extract_tool_names_from_agent_result() -> None:
     )
 
     assert names == ["ask_fundamental_agent", "ask_news_agent"]
+
+
+def test_supervisor_chat_guardrail_rejects_non_market_questions() -> None:
+    request = SupervisorChatRequest(
+        context=SupervisorChatContext(company_name="Reliance", ticker="RELIANCE.NS", sector="Energy"),
+        message="Write a Python sorting function for me.",
+        history=[],
+    )
+
+    response = run_supervisor_chat_turn(settings=None, request=request)  # type: ignore[arg-type]
+
+    assert response.guardrail_triggered is True
+    assert response.tool_names == []
+    assert "market-related questions" in response.answer
+    assert response.history[-1].content == response.answer
+
+
+def test_market_scope_guardrail_allows_company_and_market_context() -> None:
+    context = SupervisorChatContext(company_name="Reliance Industries", ticker="RELIANCE.NS", sector="Energy")
+
+    assert is_out_of_scope_market_question("What is the outlook for Reliance based on fundamentals?", context) is False
+    assert is_out_of_scope_market_question("How is RELIANCE.NS looking technically?", context) is False
+    assert is_out_of_scope_market_question("Summarize the Energy sector news impact.", context) is False
+    assert is_out_of_scope_market_question("Write a poem about Reliance Industries.", context) is True
+    assert is_out_of_scope_market_question("Plan a weekend trip to Goa.", context) is True
+
+
+def test_future_recommendation_requests_get_notice() -> None:
+    answer = maybe_prepend_future_recommendation_notice(
+        "The setup remains constructive, but resistance is still nearby.",
+        "Should I buy this stock next month?",
+    )
+
+    assert is_future_recommendation_request("Should I buy this stock next month?") is True
+    assert answer.startswith("Note: Any forward-looking suggestion here")
+    assert answer.endswith("The setup remains constructive, but resistance is still nearby.")
+
+
+def test_extract_message_text_handles_string_and_blocks() -> None:
+    assert extract_message_text("hello") == "hello"
+    assert extract_message_text([{"type": "text", "text": "hello"}, {"type": "text", "text": " world"}]) == "hello world"
+
+
+def test_stream_supervisor_chat_turn_emits_tokens_and_final_history(monkeypatch) -> None:
+    class FakeChunk:
+        def __init__(self, content):
+            self.content = content
+
+    class FakeAgent:
+        def stream(self, payload, stream_mode=None, version=None):
+            assert payload["messages"][-1]["content"] == "What changed?"
+            assert stream_mode == ["messages", "updates"]
+            assert version == "v2"
+            yield {"type": "messages", "data": (FakeChunk("Momentum "), {"langgraph_node": "model"})}
+            yield {"type": "messages", "data": (FakeChunk("improved."), {"langgraph_node": "model"})}
+            yield {
+                "type": "updates",
+                "data": {
+                    "model": {
+                        "messages": [
+                            {
+                                "content": "Momentum improved.",
+                                "tool_calls": [{"name": "ask_technical_agent"}],
+                            }
+                        ]
+                    }
+                },
+            }
+
+    monkeypatch.setattr(supervisor_chat_service, "build_supervisor_chat_agent", lambda settings, context: FakeAgent())
+
+    events = list(
+        stream_supervisor_chat_turn(
+            settings=None,  # type: ignore[arg-type]
+            request=SupervisorChatRequest(
+                context=SupervisorChatContext(company_name="Reliance", ticker="RELIANCE.NS"),
+                message="What changed?",
+                history=[],
+            ),
+        )
+    )
+
+    assert events[0] == {"type": "token", "content": "Momentum "}
+    assert events[1] == {"type": "token", "content": "improved."}
+    assert events[-1]["type"] == "final"
+    assert events[-1]["answer"] == "Momentum improved."
+    assert events[-1]["toolNames"] == ["ask_technical_agent"]
+    assert events[-1]["history"] == [
+        {"role": "user", "content": "What changed?"},
+        {"role": "assistant", "content": "Momentum improved."},
+    ]

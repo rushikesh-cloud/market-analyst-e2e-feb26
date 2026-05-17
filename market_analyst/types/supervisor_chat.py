@@ -36,3 +36,4 @@ class SupervisorChatResponse:
     answer: str
     history: list[SupervisorChatMessage]
     tool_names: list[str] = field(default_factory=list)
+    guardrail_triggered: bool = False

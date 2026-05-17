@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+import re
+from collections.abc import Iterator, Sequence
 from typing import Any
 
 import opik
@@ -36,7 +37,133 @@ the attached worker tools:
 If the user asks about the existing supervisor rating or overall view, use the supervisor
 snapshot in the prompt and call worker tools only when fresh detail is needed. Keep answers
 grounded in worker outputs. If a tool cannot provide enough evidence, say what is missing.
+
+Do not answer questions outside this product scope. Only support market-related questions
+about the tracked company, its stock, fundamentals, technicals, news, sector context, and
+the current supervisor rating. Refuse unrelated requests such as coding help, general
+knowledge, personal advice, math homework, travel, entertainment, or other non-market tasks.
 """
+
+OUT_OF_SCOPE_MESSAGE = (
+    "I can only help with market-related questions for this workspace: fundamentals, technicals, "
+    "news, sector context, and the current supervisor view for the selected stock. "
+    "Please ask a question within that scope."
+)
+
+FUTURE_RECOMMENDATION_NOTICE = (
+    "Note: Any forward-looking suggestion here is based only on historical and currently available "
+    "market information. Future outcomes can change quickly with market conditions."
+)
+
+MARKET_SCOPE_KEYWORDS = (
+    "market",
+    "stock",
+    "share",
+    "price",
+    "ticker",
+    "company",
+    "sector",
+    "peer",
+    "fundamental",
+    "financial",
+    "revenue",
+    "profit",
+    "margin",
+    "debt",
+    "cash flow",
+    "valuation",
+    "balance sheet",
+    "earnings",
+    "guidance",
+    "annual report",
+    "technical",
+    "chart",
+    "trend",
+    "momentum",
+    "support",
+    "resistance",
+    "breakout",
+    "breakdown",
+    "rsi",
+    "macd",
+    "moving average",
+    "bollinger",
+    "volume",
+    "news",
+    "headline",
+    "sentiment",
+    "watch item",
+    "supervisor rating",
+    "rating",
+    "investment",
+    "buy",
+    "sell",
+    "hold",
+    "target price",
+)
+
+MARKET_FOLLOW_UP_KEYWORDS = (
+    "outlook",
+    "view",
+    "summary",
+    "summarize",
+    "update",
+    "changed",
+    "change",
+    "compare",
+    "comparison",
+    "signal",
+    "call",
+    "conviction",
+    "risk",
+    "opportunity",
+    "position",
+    "exposure",
+    "entry",
+    "exit",
+    "accumulate",
+    "avoid",
+)
+
+OUT_OF_SCOPE_HINT_KEYWORDS = (
+    "python",
+    "code",
+    "coding",
+    "function",
+    "recipe",
+    "travel",
+    "trip",
+    "flight",
+    "hotel",
+    "movie",
+    "song",
+    "poem",
+    "joke",
+    "email",
+    "resume",
+    "homework",
+    "math",
+    "biography",
+    "birthday",
+)
+
+FUTURE_LOOKING_PATTERNS = (
+    r"\bshould i (buy|sell|hold)\b",
+    r"\b(can|could) (i|we) (buy|sell|hold)\b",
+    r"\brecommend(?:ation)?\b",
+    r"\btarget price\b",
+    r"\bprice target\b",
+    r"\bforecast\b",
+    r"\bpredict(?:ion)?\b",
+    r"\bprojection\b",
+    r"\boutlook\b",
+    r"\bgoing forward\b",
+    r"\bnext (week|month|quarter|year)\b",
+    r"\bwill (?:the )?(stock|share|market|price)\b",
+    r"\bexpected\b",
+    r"\bupside\b",
+    r"\bdownside\b",
+)
 
 
 def build_supervisor_chat_agent(
@@ -104,6 +231,20 @@ def build_supervisor_chat_tools(settings: Settings, context: SupervisorChatConte
 
 @opik.track(name="supervisor-chat-agent", type="general", tags=["agent", "supervisor", "chat"])
 def run_supervisor_chat_turn(settings: Settings, request: SupervisorChatRequest) -> SupervisorChatResponse:
+    if is_out_of_scope_market_question(request.message, request.context):
+        answer = OUT_OF_SCOPE_MESSAGE
+        return SupervisorChatResponse(
+            answer=answer,
+            history=append_short_term_history(
+                history=request.history,
+                user_message=request.message,
+                assistant_answer=answer,
+                max_history_messages=request.max_history_messages,
+            ),
+            tool_names=[],
+            guardrail_triggered=True,
+        )
+
     agent = build_supervisor_chat_agent(settings=settings, context=request.context)
     messages = build_supervisor_chat_messages(request)
     result = invoke_agent_with_tracing(
@@ -119,7 +260,10 @@ def run_supervisor_chat_turn(settings: Settings, request: SupervisorChatRequest)
             "history_messages": len(request.history),
         },
     )
-    answer = extract_final_message_content(result)
+    answer = maybe_prepend_future_recommendation_notice(
+        extract_final_message_content(result),
+        request.message,
+    )
     return SupervisorChatResponse(
         answer=answer,
         history=append_short_term_history(
@@ -130,6 +274,70 @@ def run_supervisor_chat_turn(settings: Settings, request: SupervisorChatRequest)
         ),
         tool_names=extract_tool_names(result),
     )
+
+
+def stream_supervisor_chat_turn(settings: Settings, request: SupervisorChatRequest) -> Iterator[dict[str, object]]:
+    if is_out_of_scope_market_question(request.message, request.context):
+        answer = OUT_OF_SCOPE_MESSAGE
+        history = append_short_term_history(
+            history=request.history,
+            user_message=request.message,
+            assistant_answer=answer,
+            max_history_messages=request.max_history_messages,
+        )
+        yield {
+            "type": "final",
+            "answer": answer,
+            "history": [{"role": item.role, "content": item.content} for item in history],
+            "toolNames": [],
+            "guardrailTriggered": True,
+        }
+        return
+
+    agent = build_supervisor_chat_agent(settings=settings, context=request.context)
+    messages = build_supervisor_chat_messages(request)
+    answer_parts: list[str] = []
+    fallback_answer = ""
+    tool_names: list[str] = []
+    prefixed_notice = False
+
+    if is_future_recommendation_request(request.message):
+        prefixed_notice = True
+        yield {"type": "token", "content": f"{FUTURE_RECOMMENDATION_NOTICE}\n\n"}
+
+    for part in agent.stream({"messages": messages}, stream_mode=["messages", "updates"], version="v2"):
+        if not isinstance(part, dict):
+            continue
+
+        part_type = part.get("type")
+        if part_type == "messages":
+            text = extract_stream_message_text(part.get("data"))
+            if text:
+                answer_parts.append(text)
+                yield {"type": "token", "content": text}
+            continue
+
+        if part_type == "updates":
+            update_data = part.get("data")
+            tool_names.extend(extract_tool_names_from_updates(update_data))
+            if not fallback_answer:
+                fallback_answer = extract_answer_from_updates(update_data)
+
+    answer = "".join(answer_parts).strip() or fallback_answer.strip()
+    if prefixed_notice:
+        answer = maybe_prepend_future_recommendation_notice(answer, request.message)
+    history = append_short_term_history(
+        history=request.history,
+        user_message=request.message,
+        assistant_answer=answer,
+        max_history_messages=request.max_history_messages,
+    )
+    yield {
+        "type": "final",
+        "answer": answer,
+        "history": [{"role": item.role, "content": item.content} for item in history],
+        "toolNames": _unique_tool_names(tool_names),
+    }
 
 
 def build_supervisor_chat_prompt(*, context: SupervisorChatContext, base_prompt: str = DEFAULT_SUPERVISOR_CHAT_PROMPT) -> str:
@@ -249,6 +457,115 @@ def extract_tool_names(agent_result: dict[str, Any]) -> list[str]:
             if name:
                 names.append(str(name))
     return names
+
+
+def extract_tool_names_from_updates(update_data: object) -> list[str]:
+    if not isinstance(update_data, dict):
+        return []
+
+    names: list[str] = []
+    for value in update_data.values():
+        if not isinstance(value, dict):
+            continue
+        messages = value.get("messages")
+        if not isinstance(messages, list):
+            continue
+        names.extend(extract_tool_names({"messages": messages}))
+    return names
+
+
+def extract_answer_from_updates(update_data: object) -> str:
+    if not isinstance(update_data, dict):
+        return ""
+
+    for value in update_data.values():
+        if not isinstance(value, dict):
+            continue
+        messages = value.get("messages")
+        if not isinstance(messages, list) or not messages:
+            continue
+        answer = extract_final_message_content({"messages": messages}).strip()
+        if answer:
+            return answer
+    return ""
+
+
+def extract_stream_message_text(payload: object) -> str:
+    if not isinstance(payload, tuple) or len(payload) != 2:
+        return ""
+
+    message = payload[0]
+    content = getattr(message, "content", "")
+    return extract_message_text(content)
+
+
+def extract_message_text(content: object) -> str:
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return ""
+
+    parts: list[str] = []
+    for item in content:
+        if isinstance(item, str):
+            parts.append(item)
+            continue
+        if isinstance(item, dict):
+            text = item.get("text")
+            if isinstance(text, str):
+                parts.append(text)
+    return "".join(parts)
+
+
+def _unique_tool_names(names: list[str]) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for name in names:
+        if name in seen:
+            continue
+        seen.add(name)
+        ordered.append(name)
+    return ordered
+
+
+def is_out_of_scope_market_question(message: str, context: SupervisorChatContext) -> bool:
+    normalized = normalize_text(message)
+    if not normalized:
+        return True
+    if any(keyword in normalized for keyword in OUT_OF_SCOPE_HINT_KEYWORDS):
+        return True
+    if any(keyword in normalized for keyword in MARKET_SCOPE_KEYWORDS):
+        return False
+    context_terms = _context_scope_terms(context)
+    if any(keyword in normalized for keyword in context_terms) and any(keyword in normalized for keyword in MARKET_FOLLOW_UP_KEYWORDS):
+        return False
+    return True
+
+
+def maybe_prepend_future_recommendation_notice(answer: str, user_message: str) -> str:
+    if not answer.strip():
+        return answer
+    if not is_future_recommendation_request(user_message):
+        return answer
+    if FUTURE_RECOMMENDATION_NOTICE in answer:
+        return answer
+    return f"{FUTURE_RECOMMENDATION_NOTICE}\n\n{answer}"
+
+
+def is_future_recommendation_request(message: str) -> bool:
+    normalized = normalize_text(message)
+    return any(re.search(pattern, normalized) for pattern in FUTURE_LOOKING_PATTERNS)
+
+
+def _context_scope_terms(context: SupervisorChatContext) -> tuple[str, ...]:
+    company_tokens = tuple(token for token in normalize_text(context.company_name).split() if len(token) >= 3)
+    ticker_tokens = tuple(token for token in re.split(r"[^a-z0-9]+", normalize_text(context.ticker)) if token)
+    sector_tokens = tuple(token for token in normalize_text(context.sector or "").split() if len(token) >= 3)
+    return company_tokens + ticker_tokens + sector_tokens
+
+
+def normalize_text(value: str) -> str:
+    return " ".join(value.casefold().split())
 
 
 def _format_worker_result(*, worker_name: str, rating: int | None, answer: str) -> str:
