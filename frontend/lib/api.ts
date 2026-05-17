@@ -12,7 +12,18 @@ import type {
   UploadedDocument,
 } from "./types";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+const API_BASE_URL = resolveApiBaseUrl();
+
+function resolveApiBaseUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+  if (!configured) {
+    return "";
+  }
+  if (configured === "/") {
+    return "";
+  }
+  return configured.endsWith("/") ? configured.slice(0, -1) : configured;
+}
 
 export class ApiError extends Error {
   status: number;

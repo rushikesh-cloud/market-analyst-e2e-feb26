@@ -54,11 +54,9 @@ export function AppShell({ children }: { children: ReactNode }) {
               </div>
               <div>
                 <div className="text-sm font-semibold leading-5">Market Analyst</div>
-                <div className="text-[11px] text-muted">Supervisor workflow console</div>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <span className="hidden rounded-full border border-line px-2.5 py-1 text-[11px] font-medium text-muted sm:inline-flex">Protected workspace</span>
               <div className="hidden text-right sm:block">
                 <div className="text-sm font-semibold text-ink">{user ? `${user.firstName} ${user.lastName}`.trim() : "Operator"}</div>
                 <div className="text-[11px] text-muted">{user?.email ?? "Signed in"}</div>

@@ -49,6 +49,7 @@ class Settings:
     opik_project_name: str = "market-analyst"
     opik_url_override: str = ""
     frontend_app_url: str = "http://localhost:3000"
+    auth_cookie_secure: bool = False
     auth_session_cookie_name: str = "market_analyst_session"
     auth_session_ttl_hours: int = 336
     auth_session_secret: str = "market-analyst-dev-session-secret"
@@ -161,6 +162,12 @@ class Settings:
 
 def load_settings() -> Settings:
     load_env_file()
+    frontend_app_url = os.getenv("FRONTEND_APP_URL", "http://localhost:3000").rstrip("/")
+    auth_cookie_secure = os.getenv("AUTH_COOKIE_SECURE")
+    if auth_cookie_secure is None:
+        auth_cookie_secure_value = frontend_app_url.startswith("https://")
+    else:
+        auth_cookie_secure_value = auth_cookie_secure.strip().lower() in {"1", "true", "yes", "on"}
     return Settings(
         database_host=os.getenv("DATABASE_HOST", "localhost"),
         database_port=int(os.getenv("DATABASE_PORT", "5432")),
@@ -185,7 +192,8 @@ def load_settings() -> Settings:
         opik_workspace=os.getenv("OPIK_WORKSPACE", ""),
         opik_project_name=os.getenv("OPIK_PROJECT_NAME", "market-analyst"),
         opik_url_override=os.getenv("OPIK_URL_OVERRIDE", ""),
-        frontend_app_url=os.getenv("FRONTEND_APP_URL", "http://localhost:3000").rstrip("/"),
+        frontend_app_url=frontend_app_url,
+        auth_cookie_secure=auth_cookie_secure_value,
         auth_session_cookie_name=os.getenv("AUTH_SESSION_COOKIE_NAME", "market_analyst_session"),
         auth_session_ttl_hours=int(os.getenv("AUTH_SESSION_TTL_HOURS", "336")),
         auth_session_secret=os.getenv("AUTH_SESSION_SECRET", "market-analyst-dev-session-secret"),

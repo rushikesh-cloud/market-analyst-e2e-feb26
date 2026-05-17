@@ -39,22 +39,20 @@ export default function LoginPage() {
   return (
     <GuestOnly>
       <AuthShell
-        eyebrow="Local or Google"
-        title="Welcome back"
-        subtitle="Sign in with your email and password, or continue with Google to reach the protected Market Analyst workspace."
+        title="Sign in"
         altHref={`/register${nextPath !== "/" ? `?next=${encodeURIComponent(nextPath)}` : ""}`}
-        altLabel="Need a new account?"
+        altLabel="New here?"
       >
         <button
           type="button"
           onClick={() => startGoogleSignIn(nextPath)}
           className="flex h-12 w-full items-center justify-center rounded-2xl border border-slate-300 bg-white text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
         >
-          Continue with Google
+          Google
         </button>
-        <div className="my-5 flex items-center gap-3 text-xs uppercase tracking-[0.22em] text-slate-400">
+        <div className="my-5 flex items-center gap-3 text-[11px] uppercase tracking-[0.22em] text-slate-400">
           <div className="h-px flex-1 bg-slate-200" />
-          <span>Email login</span>
+          <span>or</span>
           <div className="h-px flex-1 bg-slate-200" />
         </div>
         <form onSubmit={submit} className="grid gap-4">
@@ -65,7 +63,6 @@ export default function LoginPage() {
               value={form.email}
               onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
               className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
-              placeholder="analyst@company.com"
               required
             />
           </label>
@@ -76,7 +73,6 @@ export default function LoginPage() {
               value={form.password}
               onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
               className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
-              placeholder="Enter your password"
               required
             />
           </label>
@@ -92,7 +88,7 @@ export default function LoginPage() {
         <div className="mt-5 text-sm text-slate-500">
           New here?{" "}
           <Link href={`/register${nextPath !== "/" ? `?next=${encodeURIComponent(nextPath)}` : ""}`} className="font-semibold text-slate-900 underline decoration-slate-300 underline-offset-4">
-            Create an account
+            Register
           </Link>
         </div>
       </AuthShell>

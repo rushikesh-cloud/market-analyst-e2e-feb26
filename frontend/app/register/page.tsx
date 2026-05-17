@@ -51,26 +51,22 @@ export default function RegisterPage() {
   return (
     <GuestOnly>
       <AuthShell
-        eyebrow="Register"
-        title="Create your access"
-        subtitle="Set up a local operator account with the required profile fields, or use Google to create and sign in with the same email identity."
-        altHref={`/login${nextPath !== "/" ? `?next=${encodeURIComponent(nextPath)}` : ""}`}
-        altLabel="Already have an account?"
+        title="Register"
       >
         <button
           type="button"
           onClick={() => startGoogleSignIn(nextPath)}
           className="flex h-12 w-full items-center justify-center rounded-2xl border border-slate-300 bg-white text-sm font-semibold text-slate-900 transition hover:bg-slate-50"
         >
-          Register with Google
+          Google
         </button>
-        <div className="my-5 flex items-center gap-3 text-xs uppercase tracking-[0.22em] text-slate-400">
+        <div className="my-6 flex items-center gap-3 text-[11px] uppercase tracking-[0.22em] text-slate-400">
           <div className="h-px flex-1 bg-slate-200" />
-          <span>Local account</span>
+          <span>or</span>
           <div className="h-px flex-1 bg-slate-200" />
         </div>
-        <form onSubmit={submit} className="grid gap-4">
-          <div className="grid gap-4 sm:grid-cols-2">
+        <form onSubmit={submit} className="grid gap-5">
+          <div className="grid gap-5 sm:grid-cols-2">
             <Field label="First name">
               <input value={form.firstName} onChange={(event) => setForm((current) => ({ ...current, firstName: event.target.value }))} className={inputClassName} required />
             </Field>
@@ -81,7 +77,7 @@ export default function RegisterPage() {
           <Field label="Email">
             <input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} className={inputClassName} required />
           </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-5 sm:grid-cols-2">
             <Field label="Mobile number">
               <input value={form.mobileNumber} onChange={(event) => setForm((current) => ({ ...current, mobileNumber: event.target.value }))} className={inputClassName} required />
             </Field>
@@ -98,7 +94,7 @@ export default function RegisterPage() {
           <Field label="Date of birth">
             <input type="date" value={form.dob} onChange={(event) => setForm((current) => ({ ...current, dob: event.target.value }))} className={inputClassName} required />
           </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-5 sm:grid-cols-2">
             <Field label="Password">
               <input type="password" value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} className={inputClassName} required />
             </Field>
@@ -110,15 +106,15 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="mt-2 h-12 rounded-2xl bg-slate-950 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="mt-3 h-12 rounded-2xl bg-slate-950 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? "Creating account..." : "Create account"}
           </button>
         </form>
-        <div className="mt-5 text-sm text-slate-500">
+        <div className="mt-6 text-sm text-slate-500">
           Already registered?{" "}
           <Link href={`/login${nextPath !== "/" ? `?next=${encodeURIComponent(nextPath)}` : ""}`} className="font-semibold text-slate-900 underline decoration-slate-300 underline-offset-4">
-            Sign in
+            Login
           </Link>
         </div>
       </AuthShell>
@@ -128,7 +124,7 @@ export default function RegisterPage() {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+    <label className="grid gap-2 text-sm font-medium text-slate-700">
       <span>{label}</span>
       {children}
     </label>

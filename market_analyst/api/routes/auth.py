@@ -94,7 +94,7 @@ def _set_session_cookie(response: Response, settings: Settings, session_token: s
         value=session_token,
         httponly=True,
         samesite="lax",
-        secure=False,
+        secure=settings.auth_cookie_secure,
         expires=expires_at,
         path="/",
     )
@@ -105,6 +105,6 @@ def _clear_session_cookie(response: Response, settings: Settings) -> None:
         key=settings.auth_session_cookie_name,
         httponly=True,
         samesite="lax",
-        secure=False,
+        secure=settings.auth_cookie_secure,
         path="/",
     )
