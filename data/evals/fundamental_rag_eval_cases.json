@@ -1,0 +1,152 @@
+[
+  {
+    "case_id": "bandhan-fy25-pat",
+    "company_name": "Bandhan",
+    "report_file": "bandhan_annual_report.pdf",
+    "question_style": "single_hop",
+    "evaluation_focus": "headline_profitability",
+    "question": "What was Bandhan Bank's profit after tax in FY25?",
+    "expected_answer": "Bandhan Bank reported FY25 profit after tax of Rs 2,745.30 crore.",
+    "key_facts": [
+      "Profit After Tax (PAT): Rs 2,745.30 crore for FY25",
+      "Previous-year PAT: Rs 2,229.56 crore"
+    ],
+    "source_pages": [14, 17, 23, 90]
+  },
+  {
+    "case_id": "bandhan-capital-adequacy-vs-regulatory",
+    "company_name": "Bandhan",
+    "report_file": "bandhan_annual_report.pdf",
+    "question_style": "multi_hop",
+    "evaluation_focus": "capital_strength",
+    "question": "What was Bandhan Bank's capital adequacy ratio at the end of FY25, and how did it compare with the regulatory requirement mentioned in the report?",
+    "expected_answer": "Bandhan Bank's capital adequacy ratio was 18.7 percent at 31 March 2025, comfortably above the 11.5 percent regulatory requirement.",
+    "key_facts": [
+      "Capital adequacy ratio: 18.7 percent / 18.71 percent",
+      "Regulatory requirement referenced in the report: 11.5 percent"
+    ],
+    "source_pages": [17, 23]
+  },
+  {
+    "case_id": "bandhan-balance-sheet-growth",
+    "company_name": "Bandhan",
+    "report_file": "bandhan_annual_report.pdf",
+    "question_style": "multi_hop",
+    "evaluation_focus": "liability_asset_growth",
+    "question": "As of 31 March 2025, what were Bandhan Bank's total deposits and net advances, and how much did each grow versus FY24?",
+    "expected_answer": "At 31 March 2025, Bandhan Bank had deposits of Rs 1,51,212.50 crore and net advances of Rs 1,31,987.32 crore. Deposits grew 11.8 percent year over year, while net advances grew 9.0 percent year over year.",
+    "key_facts": [
+      "Deposits FY25: Rs 1,51,212.50 crore vs Rs 1,35,201.99 crore in FY24",
+      "Advances (net) FY25: Rs 1,31,987.32 crore vs Rs 1,21,136.78 crore in FY24",
+      "Deposit growth: 11.8 percent",
+      "Advance growth: 9.0 percent"
+    ],
+    "source_pages": [18, 90]
+  },
+  {
+    "case_id": "bandhan-asset-quality",
+    "company_name": "Bandhan",
+    "report_file": "bandhan_annual_report.pdf",
+    "question_style": "single_hop",
+    "evaluation_focus": "asset_quality",
+    "question": "What were Bandhan Bank's gross NPA and net NPA levels at the end of FY25?",
+    "expected_answer": "At the end of FY25, Bandhan Bank's gross NPA was about 4.7 percent and net NPA was about 1.3 percent.",
+    "key_facts": [
+      "Gross NPA: 4.71 percent (rounded to 4.7 percent in the narrative)",
+      "Net NPA: 1.28 percent (rounded to 1.3 percent in the narrative)"
+    ],
+    "source_pages": [17, 23]
+  },
+  {
+    "case_id": "bandhan-secured-advances-shift",
+    "company_name": "Bandhan",
+    "report_file": "bandhan_annual_report.pdf",
+    "question_style": "multi_hop",
+    "evaluation_focus": "portfolio_mix",
+    "question": "How much did Bandhan Bank's secured advances grow in FY25, and what share of total advances did they represent by March 2025?",
+    "expected_answer": "Bandhan Bank's secured advances grew 32 percent in FY25 and represented 50.5 percent of total advances by March 2025.",
+    "key_facts": [
+      "Secured advances growth: 32 percent year over year",
+      "Secured advances share of total advances: 50.5 percent"
+    ],
+    "source_pages": [23]
+  },
+  {
+    "case_id": "emcure-fy25-revenue-split",
+    "company_name": "Emcure",
+    "report_file": "emcure_annual_report.pdf",
+    "question_style": "multi_hop",
+    "evaluation_focus": "topline_mix",
+    "question": "What was Emcure's FY25 revenue from operations, and how was it split between domestic and international business?",
+    "expected_answer": "Emcure reported FY25 revenue from operations of Rs 78,960 million, split into Rs 42,363 million domestic revenue and Rs 36,597 million international revenue.",
+    "key_facts": [
+      "Revenue from operations FY25: Rs 78,960 million",
+      "Domestic FY25 revenue: Rs 42,363 million",
+      "International FY25 revenue: Rs 36,597 million"
+    ],
+    "source_pages": [7]
+  },
+  {
+    "case_id": "emcure-ebitda-pat-margins",
+    "company_name": "Emcure",
+    "report_file": "emcure_annual_report.pdf",
+    "question_style": "multi_hop",
+    "evaluation_focus": "profitability",
+    "question": "What were Emcure's FY25 EBITDA and profit after tax, and what margins were shown for each?",
+    "expected_answer": "For FY25, Emcure reported EBITDA of Rs 14,689 million with an EBITDA margin of 18.6 percent, and profit after tax of Rs 7,075 million with a PAT margin of 9.0 percent.",
+    "key_facts": [
+      "EBITDA FY25: Rs 14,689 million",
+      "EBITDA margin FY25: 18.6 percent",
+      "PAT FY25: Rs 7,075 million",
+      "PAT margin FY25: 9.0 percent"
+    ],
+    "source_pages": [7]
+  },
+  {
+    "case_id": "emcure-fy25-strategic-initiatives",
+    "company_name": "Emcure",
+    "report_file": "emcure_annual_report.pdf",
+    "question_style": "single_hop",
+    "evaluation_focus": "strategic_growth_drivers",
+    "question": "Name two strategic initiatives Emcure highlighted in FY2025 that were intended to support future growth.",
+    "expected_answer": "Examples include the in-licensing of Lenacapavir from Gilead for the global ARV segment, the distribution agreement with Sanofi for a cardiovascular portfolio in India, the launch of Emcutix in dermatology, and the consumer health entry under the Arth brand.",
+    "key_facts": [
+      "In-licensed Lenacapavir from Gilead",
+      "Entered a Sanofi distribution agreement for cardiovascular products in India",
+      "Launched Emcutix dermatology subsidiary",
+      "Entered consumer health under the Arth brand"
+    ],
+    "source_pages": [20]
+  },
+  {
+    "case_id": "emcure-debt-equity-change",
+    "company_name": "Emcure",
+    "report_file": "emcure_annual_report.pdf",
+    "question_style": "multi_hop",
+    "evaluation_focus": "leverage_change",
+    "question": "What was Emcure's debt-equity ratio in FY25 versus FY24, and what reason did the report give for the sharp change?",
+    "expected_answer": "Emcure's debt-equity ratio fell to 0.22 in FY25 from 0.73 in FY24. The report attributes the decline to capital infusion and repayment of borrowings after the company got listed on the stock exchange.",
+    "key_facts": [
+      "Debt-equity ratio FY25: 0.22",
+      "Debt-equity ratio FY24: 0.73",
+      "Reason: capital infusion and repayment of borrowings after listing / IPO"
+    ],
+    "source_pages": [185]
+  },
+  {
+    "case_id": "emcure-roe-improvement-driver",
+    "company_name": "Emcure",
+    "report_file": "emcure_annual_report.pdf",
+    "question_style": "multi_hop",
+    "evaluation_focus": "returns_improvement",
+    "question": "How much did Emcure's return on equity improve in FY25, and what reasons did management provide for that improvement?",
+    "expected_answer": "Emcure's return on equity improved to 12.8 percent in FY25 from 8.5 percent in FY24, a 50 percent increase. The report says the improvement came from higher sales, a favorable product mix, and multiple cost-saving initiatives.",
+    "key_facts": [
+      "ROE FY25: 12.8 percent",
+      "ROE FY24: 8.5 percent",
+      "Percent change from previous year: 50 percent",
+      "Reasons: increase in sales, change in product mix, and cost savings initiatives"
+    ],
+    "source_pages": [185]
+  }
+]

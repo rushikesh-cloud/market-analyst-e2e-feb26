@@ -27,6 +27,8 @@ Current companion notebook:
 | Notebook | Goal | Reusable module surface |
 | --- | --- | --- |
 | `04_rag_agent_end_to_end.ipynb` | Run one complete document-to-agent RAG flow: select a PDF, extract markdown, inspect chunks and preserved tables, persist chunks to vector/full-text stores, run full-text/vector/hybrid retrieval, and ask a fundamentals question through the RAG agent. | `backend.ingest_reports`, `services.rag`, `repositories.vector_db`, `services.agent` |
+| `05_technical_agent_v2.ipynb` | Run the separate technical-agent V2 flow: pass ticker plus dynamic indicator configs, let a LangChain `create_agent` worker generate the chart through tools, inspect the saved chart, and validate the structured technical response without replacing V1 yet. | `providers.market_data`, `services.charting_v2`, `services.agents.technical_v2` |
+| `09_rag_eval_case_builder.ipynb` | Extract the Bandhan and Emcure annual reports with Azure Document Intelligence, save raw markdown snapshots, group each report into five broad page windows, and review the curated 10-case financial Q/A dataset that will later score vector DB retrieval quality. | `providers.document_intelligence`, `services.rag_eval`, `data/evals` |
 
 ## Notebook Principles
 
@@ -40,7 +42,10 @@ Current companion notebook:
 - The RAG splitter must keep each extracted HTML or markdown table inside a single chunk, adding bounded text context from before and after the table. Table chunks may exceed the nominal chunk target rather than splitting the table.
 - The first runnable agent notebook must construct the agent through LangChain `create_agent`, expose a retrieval tool backed by the shared hybrid-search module, and keep model/provider setup in reusable Python modules.
 - The end-to-end RAG agent notebook must make vector DB writes explicit in a run-configuration cell, show retrieved context before invoking the model, and display a compact agent/tool trace after the answer.
+- The RAG eval-case notebook must save raw markdown outputs to a deterministic artifact path, show ten broad consecutive-page coverage windows across the two target reports, and expose a 10-case question-answer dataset that is grounded in report pages before any automated retrieval scoring is introduced.
 - The technical agent notebook must save the generated chart image, display it before model invocation, and keep chart generation separate from the multimodal model call so both stages can be validated independently.
+- The technical-agent V2 notebook must validate dynamic chart inputs end to end: ticker, duration/period, candle interval, requested indicators, and per-indicator parameters.
+- The technical-agent V2 notebook must keep V1 untouched and prove the new agent through a separate notebook/service surface until explicit promotion.
 - The news agent notebook must validate `TAVILY_API_KEY` and Azure OpenAI chat settings, construct the shared `services.agents.news` LangChain agent, search both company/ticker and sector context, and assert that the result includes an answer plus a 1-100 rating when the model returns valid JSON.
 - The supervisor notebook must use the shared `services.supervisor` aggregation surface so worker outputs and the final future-perspective rating use the same 1-100 contract that later runtime code will reuse.
 - The chat supervisor surface must be separate from the static supervisor run. It should expose fundamental, technical, and news workers as tools, accept bounded short-term chat history, and return a grounded answer plus the updated message history for follow-up turns.

@@ -116,6 +116,7 @@ Current companion notebook:
 
 - `04_rag_agent_end_to_end.ipynb`: runnable document-to-RAG-agent validation path for fundamentals questions before the dedicated worker-agent notebooks are fully split out.
 - `05_technical_agent_v2.ipynb`: separate technical-agent V2 validation path for dynamic indicator-driven charts built through LangChain `create_agent` tools without replacing V1 yet.
+- `09_rag_eval_case_builder.ipynb`: extracts the Bandhan and Emcure annual reports with Azure Document Intelligence, saves raw markdown, builds 10 broad markdown coverage windows, and drafts 10 financially grounded question-answer eval cases for later vector DB retrieval scoring.
 
 Notebook-specific requirements and acceptance criteria are defined in `docs/product-specs/notebook-first-validation.md`. Reusable module boundaries for this phase are defined in `docs/design-docs/notebook-first-modularization.md`.
 

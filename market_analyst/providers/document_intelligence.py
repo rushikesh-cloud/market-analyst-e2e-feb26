@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Iterator
 
 import fitz
+from azure.ai.documentintelligence import DocumentIntelligenceClient
+from azure.core.credentials import AzureKeyCredential
 from langchain_community.document_loaders import AzureAIDocumentIntelligenceLoader
 from langchain_core.documents import Document
 
@@ -18,13 +20,24 @@ def build_document_intelligence_loader(
     document_bytes: bytes,
 ) -> AzureAIDocumentIntelligenceLoader:
     settings.require_document_intelligence()
-    return AzureAIDocumentIntelligenceLoader(
+    loader = AzureAIDocumentIntelligenceLoader(
         api_endpoint=settings.document_intelligence_endpoint,
         api_key=settings.document_intelligence_key,
         bytes_source=document_bytes,
         api_model="prebuilt-layout",
         mode="markdown",
     )
+    connection_verify = resolve_document_intelligence_connection_verify(
+        settings.document_intelligence_connection_verify
+    )
+    if connection_verify is not None:
+        loader.parser.client = DocumentIntelligenceClient(
+            endpoint=settings.document_intelligence_endpoint,
+            credential=AzureKeyCredential(settings.document_intelligence_key),
+            headers={"x-ms-useragent": "langchain-parser/1.0.0"},
+            connection_verify=connection_verify,
+        )
+    return loader
 
 
 def analyze_report_to_markdown(
@@ -138,3 +151,14 @@ def _normalize_page_markdown(markdown: str) -> str:
     for line in markdown.splitlines():
         lines.append(re.sub(r"^(#{1,6})\s+", "#### ", line))
     return "\n".join(lines)
+
+
+def resolve_document_intelligence_connection_verify(value: str) -> bool | str | None:
+    normalized = value.strip()
+    if not normalized:
+        return None
+    if normalized.lower() in {"0", "false", "no", "off"}:
+        return False
+    if normalized.lower() in {"1", "true", "yes", "on"}:
+        return True
+    return normalized
