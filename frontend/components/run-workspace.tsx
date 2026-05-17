@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, BarChart3, FileSearch, Newspaper, RotateCw, Share2, Sparkles } from "lucide-react";
@@ -141,6 +142,11 @@ export function RunWorkspace({ runId }: { runId: string }) {
               {overview.confidence ? <StatusPill label={overview.confidence} tone="neutral" /> : null}
               <StatusPill label={run.documentName} tone="neutral" />
             </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {componentSummaries.map((item) => (
+                <MiniScoreCard key={item.name} label={item.name} rating={item.rating} />
+              ))}
+            </div>
             <div className="grid gap-3 md:grid-cols-3">
               <SummaryBucket title="Positive" items={overview.top_positives} emptyLabel="Pending" />
               <SummaryBucket title="Risk" items={overview.top_risks} emptyLabel="Pending" />
@@ -275,7 +281,14 @@ function OverviewTab({
       {technicalChartUrl ? (
         <section className="overflow-hidden rounded-2xl border border-line bg-white p-3">
           <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">Chart</div>
-          <img src={technicalChartUrl} alt={`${run.companyName} technical chart`} className="h-auto w-full rounded-xl border border-line object-contain" />
+          <Image
+            src={technicalChartUrl}
+            alt={`${run.companyName} technical chart`}
+            width={1600}
+            height={900}
+            unoptimized
+            className="h-auto w-full rounded-xl border border-line object-contain"
+          />
         </section>
       ) : null}
     </div>
@@ -345,7 +358,14 @@ function TechnicalTab({
         <section className="overflow-hidden rounded-2xl border border-line bg-white p-3">
           <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">Chart</div>
           {chartUrl ? (
-            <img src={chartUrl} alt="Technical chart" className="h-auto w-full rounded-xl border border-line object-contain" />
+            <Image
+              src={chartUrl}
+              alt="Technical chart"
+              width={1600}
+              height={900}
+              unoptimized
+              className="h-auto w-full rounded-xl border border-line object-contain"
+            />
           ) : (
             <div className="rounded-xl border border-dashed border-line px-4 py-10 text-center text-sm text-muted">Pending</div>
           )}
@@ -413,6 +433,15 @@ function SummaryBucket({ title, items, emptyLabel }: { title: string; items?: st
           <div className="text-sm text-slate-400">{emptyLabel}</div>
         )}
       </div>
+    </div>
+  );
+}
+
+function MiniScoreCard({ label, rating }: { label: string; rating?: number | null }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</div>
+      <div className="mt-2 text-2xl font-semibold leading-none text-white">{rating ?? "--"}</div>
     </div>
   );
 }

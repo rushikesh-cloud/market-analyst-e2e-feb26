@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { BarChart3, CheckCircle2, ChevronDown, FileSearch, Loader2, Newspaper } from "lucide-react";
 import type { AgentKey, AgentOutput } from "@/lib/types";
@@ -55,7 +56,14 @@ export function AgentPanel({ output, defaultOpen = false }: { output: AgentOutpu
         <div className="grid gap-4 p-4">
           {output.chartUrl ? (
             <div className="overflow-hidden rounded-lg border border-line bg-slate-50">
-              <img src={output.chartUrl} alt={`${output.title} chart`} className="h-auto w-full object-contain" />
+              <Image
+                src={output.chartUrl}
+                alt={`${output.title} chart`}
+                width={1600}
+                height={900}
+                unoptimized
+                className="h-auto w-full object-contain"
+              />
             </div>
           ) : null}
           <div className="min-h-24 rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-700">
