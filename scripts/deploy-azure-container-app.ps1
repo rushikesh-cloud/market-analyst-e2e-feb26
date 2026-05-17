@@ -134,7 +134,11 @@ Set-EnvFromDotEnv -Path (Join-Path $repoRoot ".env")
 
 $imageName = "$AcrName.azurecr.io/market-analyst:$ImageTag"
 $frontendUrl = "https://placeholder.invalid"
-$authSessionSecret = [Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Maximum 256 }))
+$authSessionSecret = if (-not [string]::IsNullOrWhiteSpace($env:AUTH_SESSION_SECRET)) {
+    $env:AUTH_SESSION_SECRET
+} else {
+    [Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Maximum 256 }))
+}
 
 Write-Host "Ensuring Container Apps extension..."
 az extension add --name containerapp --upgrade | Out-Null

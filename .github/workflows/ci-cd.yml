@@ -1,0 +1,109 @@
+name: CI CD
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: market-analyst-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "20"
+  RESOURCE_GROUP: feb26batch-e2e-project
+  LOCATION: westus2
+  CONTAINER_APP_NAME: marketanalystfeb26
+  CONTAINER_ENV_NAME: marketanalystfeb26-env
+  ACR_NAME: marketanalystfeb26acr
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install backend dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt pytest
+
+      - name: Run backend tests
+        run: pytest tests/test_api_auth.py tests/test_auth_service.py
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run frontend lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Run frontend build
+        working-directory: frontend
+        run: npm run build
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: ci
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Ensure Azure Container Apps extension
+        run: az extension add --name containerapp --upgrade
+
+      - name: Deploy to Azure Container Apps
+        shell: pwsh
+        env:
+          DATABASE_HOST: ${{ vars.DATABASE_HOST }}
+          DATABASE_PORT: ${{ vars.DATABASE_PORT }}
+          DATABASE_NAME: ${{ vars.DATABASE_NAME }}
+          DATABASE_USER: ${{ vars.DATABASE_USER }}
+          DOCUMENT_INTELLIGENCE_ENDPOINT: ${{ vars.DOCUMENT_INTELLIGENCE_ENDPOINT }}
+          AZURE_OPENAI_ENDPOINT: ${{ vars.AZURE_OPENAI_ENDPOINT }}
+          AZURE_OPENAI_DEPLOYMENT: ${{ vars.AZURE_OPENAI_DEPLOYMENT }}
+          AZURE_OPENAI_VERSION: ${{ vars.AZURE_OPENAI_VERSION }}
+          AZURE_OPENAI_EMBEDDING_DEPLOYMENT: ${{ vars.AZURE_OPENAI_EMBEDDING_DEPLOYMENT }}
+          OPIK_WORKSPACE: ${{ vars.OPIK_WORKSPACE }}
+          OPIK_PROJECT_NAME: ${{ vars.OPIK_PROJECT_NAME }}
+          OPIK_URL_OVERRIDE: ${{ vars.OPIK_URL_OVERRIDE }}
+          GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+          DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+          DOCUMENT_INTELLIGENCE_KEY: ${{ secrets.DOCUMENT_INTELLIGENCE_KEY }}
+          AZURE_OPENAI_KEY: ${{ secrets.AZURE_OPENAI_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          OPIK_API_KEY: ${{ secrets.OPIK_API_KEY }}
+          AUTH_SESSION_SECRET: ${{ secrets.AUTH_SESSION_SECRET }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+        run: >
+          ./scripts/deploy-azure-container-app.ps1
+          -ResourceGroup $env:RESOURCE_GROUP
+          -Location $env:LOCATION
+          -ContainerAppName $env:CONTAINER_APP_NAME
+          -ContainerEnvName $env:CONTAINER_ENV_NAME
+          -AcrName $env:ACR_NAME
+          -ImageTag "${{ github.sha }}"
