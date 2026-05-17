@@ -7,6 +7,7 @@ from market_analyst.services.agents.fundamental import run_fundamental_analysis_
 from market_analyst.services.agents.news import run_news_analysis_agent
 from market_analyst.services.agents.technical import run_technical_analysis_agent
 from market_analyst.services.scoring import normalize_rating
+from market_analyst.services.visual_summaries import build_supervisor_visual_summary
 from market_analyst.types.fundamental import FundamentalAnalysisRequest, FundamentalAnalysisResult
 from market_analyst.types.news import NewsAnalysisRequest, NewsAnalysisResult
 from market_analyst.types.supervisor import (
@@ -112,6 +113,14 @@ def aggregate_supervisor_result(
         technical=technical,
         news=news,
         metadata={"weights": normalized_weights},
+        visual_summary=build_supervisor_visual_summary(
+            final_rating=final_rating,
+            summary=build_supervisor_summary(company_name=company_name, ticker=ticker, final_rating=final_rating, components=components),
+            components=components,
+            fundamental=fundamental.visual_summary if fundamental else None,
+            technical=technical.visual_summary if technical else None,
+            news=news.visual_summary if news else None,
+        ),
     )
 
 

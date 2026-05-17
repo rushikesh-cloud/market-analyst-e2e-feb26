@@ -8,6 +8,7 @@ from langchain.agents import create_agent
 from market_analyst.config.settings import Settings
 from market_analyst.providers.tavily import build_tavily_search_tool
 from market_analyst.services.agent import build_chat_model
+from market_analyst.services.visual_summaries import build_news_visual_summary
 from market_analyst.services.scoring import extract_rating, normalize_rating, parse_json_object
 from market_analyst.telemetry import invoke_agent_with_tracing
 from market_analyst.types.news import NewsAnalysisRequest, NewsAnalysisResult, NewsSourceReference
@@ -34,6 +35,7 @@ Return only valid JSON with this schema:
   "company_name": "string",
   "ticker": "string",
   "sector": "string or null",
+  "stance": "string",
   "rating": 1,
   "sentiment_score": 1,
   "positive_developments": ["string"],
@@ -105,8 +107,10 @@ def run_news_analysis_agent(settings: Settings, request: NewsAnalysisRequest) ->
         question=question,
         answer=answer,
         rating=rating,
-        sentiment_score=rating,
+        sentiment_score=extract_sentiment_score(payload) or rating,
         sources=sources,
+        structured_output=payload,
+        visual_summary=build_news_visual_summary(payload, rating=rating),
     )
 
 

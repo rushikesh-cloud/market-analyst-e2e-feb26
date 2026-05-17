@@ -2,36 +2,39 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, RotateCw, Share2 } from "lucide-react";
-import { AgentPanel } from "@/components/agent-panel";
+import { ArrowLeft, BarChart3, FileSearch, Newspaper, RotateCw, Share2, Sparkles } from "lucide-react";
 import { ChatPanel } from "@/components/chat-panel";
 import { RunTimeline } from "@/components/run-timeline";
-import { SupervisorPanel } from "@/components/supervisor-panel";
 import { getSupervisorRun, getSupervisorRunTechnicalChartUrl } from "@/lib/api";
-import { baseAgentOutputs, timelineSteps } from "@/lib/mock-data";
-import type { AgentKey, AgentOutput, SourceReference, SupervisorOutput, SupervisorResult, SupervisorRun, WorkerResult } from "@/lib/types";
+import { timelineSteps } from "@/lib/mock-data";
+import type {
+  AgentKey,
+  AgentStatus,
+  FundamentalVisualSummary,
+  NewsVisualSummary,
+  SourceReference,
+  SupervisorResult,
+  SupervisorRun,
+  SupervisorVisualSummary,
+  TechnicalVisualSummary,
+  TimelineStep,
+  WorkerResult,
+} from "@/lib/types";
 
+type RunTab = "overview" | "fundamental" | "technical" | "news";
 
-function cloneAgentOutputs(): Record<AgentKey, AgentOutput> {
-  return {
-    fundamental: { ...baseAgentOutputs.fundamental, details: { ...baseAgentOutputs.fundamental.details }, evidence: [...baseAgentOutputs.fundamental.evidence], sources: [...baseAgentOutputs.fundamental.sources] },
-    technical: { ...baseAgentOutputs.technical, details: { ...baseAgentOutputs.technical.details }, evidence: [...baseAgentOutputs.technical.evidence], sources: [...baseAgentOutputs.technical.sources] },
-    news: { ...baseAgentOutputs.news, details: { ...baseAgentOutputs.news.details }, evidence: [...baseAgentOutputs.news.evidence], sources: [...baseAgentOutputs.news.sources] },
-  };
-}
-
-const initialSupervisor: SupervisorOutput = {
-  status: "idle",
-  summary: "",
-  weights: { fundamental: 0.45, technical: 0.3, news: 0.25 },
-};
+const tabConfig: Array<{ id: RunTab; label: string; icon: typeof Sparkles }> = [
+  { id: "overview", label: "Overview", icon: Sparkles },
+  { id: "fundamental", label: "Fundamental", icon: FileSearch },
+  { id: "technical", label: "Technical", icon: BarChart3 },
+  { id: "news", label: "News", icon: Newspaper },
+];
 
 export function RunWorkspace({ runId }: { runId: string }) {
   const [run, setRun] = useState<SupervisorRun | null>(null);
-  const [agents, setAgents] = useState<Record<AgentKey, AgentOutput>>(() => cloneAgentOutputs());
-  const [supervisor, setSupervisor] = useState<SupervisorOutput>(initialSupervisor);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const [activeTab, setActiveTab] = useState<RunTab>("overview");
 
   useEffect(() => {
     let isMounted = true;
@@ -41,15 +44,13 @@ export function RunWorkspace({ runId }: { runId: string }) {
         .then((item) => {
           if (!isMounted) return;
           setRun(item);
-          setAgents(buildAgentOutputs(item));
-          setSupervisor(buildSupervisorOutput(item));
           setError(null);
         })
         .catch((apiError: unknown) => {
           if (isMounted) setError(apiError instanceof Error ? apiError.message : "Unable to load supervisor run");
         });
 
-    loadRun();
+    void loadRun();
     const intervalId = window.setInterval(loadRun, 4000);
     return () => {
       isMounted = false;
@@ -59,39 +60,28 @@ export function RunWorkspace({ runId }: { runId: string }) {
 
   useEffect(() => {
     if (!run) return;
-    const startedAt = new Date(run.createdAt).getTime();
-    if (Number.isNaN(startedAt)) return;
-    const endedAt = new Date(run.updatedAt).getTime();
-    const isRunning = run.status === "running";
-    const referenceTime = !Number.isNaN(endedAt) && !isRunning ? endedAt : Date.now();
-    setElapsed(Math.max(0, Math.floor((referenceTime - startedAt) / 1000)));
-    if (!isRunning) return;
 
-    const intervalId = window.setInterval(() => {
-      setElapsed(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
-    }, 1000);
+    const updateElapsed = () => {
+      const startedAt = new Date(run.createdAt).getTime();
+      const endedAt = new Date(run.updatedAt).getTime();
+      if (Number.isNaN(startedAt)) return;
+      const referenceTime =
+        run.status === "running"
+          ? Date.now()
+          : Number.isNaN(endedAt)
+            ? startedAt
+            : endedAt;
+      setElapsed(Math.max(0, Math.floor((referenceTime - startedAt) / 1000)));
+    };
+
+    updateElapsed();
+    if (run.status !== "running") return;
+
+    const intervalId = window.setInterval(updateElapsed, 1000);
     return () => window.clearInterval(intervalId);
   }, [run]);
 
-  const steps = useMemo(
-    () =>
-      timelineSteps.map((step) => {
-        if (step.id === "fundamental") {
-          return { ...step, status: run?.fundamentalStatus ?? "idle" };
-        }
-        if (step.id === "technical") {
-          return { ...step, status: run?.technicalStatus ?? "idle" };
-        }
-        if (step.id === "news") {
-          return { ...step, status: run?.newsStatus ?? "idle" };
-        }
-        if (step.id === "supervisor") {
-          return { ...step, status: normalizeAgentStatus(run?.status) };
-        }
-        return step;
-      }),
-    [run],
-  );
+  const steps = useMemo(() => buildTimelineSteps(run), [run]);
 
   if (error) {
     return <div className="p-4 text-sm text-red-700 md:p-6">{error}</div>;
@@ -100,6 +90,20 @@ export function RunWorkspace({ runId }: { runId: string }) {
   if (!run) {
     return <div className="p-4 text-sm text-muted md:p-6">Loading supervisor run...</div>;
   }
+
+  const supervisor = (run.supervisor ?? {}) as SupervisorResult;
+  const overview = (supervisor.visual_summary ?? {}) as SupervisorVisualSummary;
+  const fundamental = (run.fundamental ?? {}) as WorkerResult;
+  const technical = (run.technical ?? {}) as WorkerResult;
+  const news = (run.news ?? {}) as WorkerResult;
+  const fundamentalVisual = (fundamental.visual_summary ?? {}) as FundamentalVisualSummary;
+  const technicalVisual = (technical.visual_summary ?? {}) as TechnicalVisualSummary;
+  const newsVisual = (news.visual_summary ?? {}) as NewsVisualSummary;
+  const technicalChartUrl = typeof technical.chart_path === "string" ? getSupervisorRunTechnicalChartUrl(run.id) : undefined;
+  const componentSummaries =
+    overview.component_contributions && overview.component_contributions.length > 0
+      ? overview.component_contributions
+      : buildFallbackContributions(run);
 
   return (
     <div className="grid gap-5 p-4 md:p-6">
@@ -114,7 +118,6 @@ export function RunWorkspace({ runId }: { runId: string }) {
               <span className="rounded-md border border-line bg-panel px-2 py-1 text-[11px] font-semibold text-muted">{run.yahooFinanceTicker ?? run.ticker}</span>
             </div>
             <div className="mt-1 text-xs text-muted">{run.sector ?? "Sector pending"} · {run.status} · {elapsed}s</div>
-            <div className="mt-1 truncate text-[11px] text-muted">{run.documentName}</div>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -125,22 +128,101 @@ export function RunWorkspace({ runId }: { runId: string }) {
           <button className="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-panel" aria-label="Share">
             <Share2 size={14} />
           </button>
-          <div className="flex h-9 w-14 items-center justify-center rounded-lg bg-ink text-sm font-semibold text-white">{run.finalRating ?? "--"}</div>
         </div>
       </div>
 
       {run.errorMessage ? <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{run.errorMessage}</div> : null}
 
+      <section className="overflow-hidden rounded-2xl bg-slate-950 text-white shadow-soft">
+        <div className="grid gap-4 p-5 lg:grid-cols-[1.3fr_0.7fr] lg:p-6">
+          <div className="grid gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusPill label={overview.stance ?? describeStatus(run.status)} tone={toneFromRating(run.finalRating)} />
+              {overview.confidence ? <StatusPill label={overview.confidence} tone="neutral" /> : null}
+              <StatusPill label={run.documentName} tone="neutral" />
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              <SummaryBucket title="Positive" items={overview.top_positives} emptyLabel="Pending" />
+              <SummaryBucket title="Risk" items={overview.top_risks} emptyLabel="Pending" />
+              <SummaryBucket title="Watch" items={overview.watch_items} emptyLabel="Pending" />
+            </div>
+          </div>
+          <div className="grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Final</div>
+                <div className="mt-2 text-4xl font-semibold leading-none">{run.finalRating ?? "--"}</div>
+              </div>
+              <div className="rounded-2xl bg-white/10 px-3 py-2 text-xs font-medium text-slate-200">{run.status}</div>
+            </div>
+            <div className="grid gap-2">
+              {componentSummaries.map((item) => (
+                <div key={item.name}>
+                  <div className="mb-1 flex items-center justify-between text-xs text-slate-300">
+                    <span className="capitalize">{item.name}</span>
+                    <span>{item.rating ?? "--"}</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-white/10">
+                    <div
+                      className={`h-full rounded-full ${toneFillClass(toneFromRating(item.rating))}`}
+                      style={{ width: `${Math.max(8, item.weight_pct)}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       <RunTimeline steps={steps} />
 
-      <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="grid gap-5">
-          <div className="grid gap-3">
-            <AgentPanel output={agents.fundamental} defaultOpen />
-            <AgentPanel output={agents.technical} />
-            <AgentPanel output={agents.news} />
-          </div>
-          <SupervisorPanel output={supervisor} />
+          <section className="rounded-2xl border border-line bg-panel shadow-soft">
+            <div className="flex flex-wrap gap-2 border-b border-line p-3">
+              {tabConfig.map((tab) => {
+                const Icon = tab.icon;
+                const active = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                      active ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    <Icon size={14} />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="p-4 md:p-5">
+              {activeTab === "overview" ? (
+                <OverviewTab
+                  run={run}
+                  overview={overview}
+                  componentSummaries={componentSummaries}
+                  technicalChartUrl={technicalChartUrl}
+                />
+              ) : null}
+              {activeTab === "fundamental" ? (
+                <FundamentalTab
+                  status={run.fundamentalStatus}
+                  summary={fundamentalVisual}
+                  sources={extractFundamentalSources(fundamental)}
+                />
+              ) : null}
+              {activeTab === "technical" ? (
+                <TechnicalTab status={run.technicalStatus} summary={technicalVisual} chartUrl={technicalChartUrl} />
+              ) : null}
+              {activeTab === "news" ? (
+                <NewsTab status={run.newsStatus} summary={newsVisual} sources={extractNewsSources(news)} />
+              ) : null}
+            </div>
+          </section>
         </div>
         <div className="xl:sticky xl:top-6 xl:self-start">
           <ChatPanel runId={runId} enabled={run.status === "completed"} initialMessages={[]} />
@@ -150,270 +232,417 @@ export function RunWorkspace({ runId }: { runId: string }) {
   );
 }
 
-function buildAgentOutputs(run: SupervisorRun): Record<AgentKey, AgentOutput> {
-  const outputs = cloneAgentOutputs();
-  outputs.fundamental = hydrateAgentOutput(outputs.fundamental, run.fundamental, run.fundamentalStatus, run.id);
-  outputs.technical = hydrateAgentOutput(outputs.technical, run.technical, run.technicalStatus, run.id);
-  outputs.news = hydrateAgentOutput(outputs.news, run.news, run.newsStatus, run.id);
-  return outputs;
+function OverviewTab({
+  run,
+  overview,
+  componentSummaries,
+  technicalChartUrl,
+}: {
+  run: SupervisorRun;
+  overview: SupervisorVisualSummary;
+  componentSummaries: Array<{ name: string; rating?: number | null; weight_pct: number; contribution_pct?: number | null }>;
+  technicalChartUrl?: string;
+}) {
+  return (
+    <div className="grid gap-5">
+      <div className="grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
+        <section className="rounded-2xl border border-line bg-slate-50 p-4">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">Decision</div>
+          <div className="mt-3 text-sm leading-6 text-slate-800">{overview.decision || minimalStatusCopy(run.status)}</div>
+        </section>
+        <section className="rounded-2xl border border-line bg-white p-4">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">Mix</div>
+          <div className="mt-3 grid gap-3">
+            {componentSummaries.map((item) => (
+              <div key={item.name}>
+                <div className="mb-1 flex items-center justify-between text-xs">
+                  <span className="capitalize text-slate-600">{item.name}</span>
+                  <span className="font-semibold text-slate-900">{item.rating ?? "--"}</span>
+                </div>
+                <div className="h-2 rounded-full bg-slate-100">
+                  <div className={`h-full rounded-full ${toneFillClass(toneFromRating(item.rating))}`} style={{ width: `${Math.max(10, item.weight_pct)}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        <ListCard title="Positive" items={overview.top_positives} />
+        <ListCard title="Risk" items={overview.top_risks} />
+        <ListCard title="Watch" items={overview.watch_items} />
+      </div>
+      {technicalChartUrl ? (
+        <section className="overflow-hidden rounded-2xl border border-line bg-white p-3">
+          <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">Chart</div>
+          <img src={technicalChartUrl} alt={`${run.companyName} technical chart`} className="h-auto w-full rounded-xl border border-line object-contain" />
+        </section>
+      ) : null}
+    </div>
+  );
 }
 
-function hydrateAgentOutput(base: AgentOutput, worker: WorkerResult | null | undefined, status: string, runId: string): AgentOutput {
-  const normalizedStatus = normalizeAgentStatus(status);
-  if (!worker) {
-    return {
-      key: base.key,
-      title: base.title,
-      status: normalizedStatus,
-      stream: status === "running" ? "Worker is executing on the backend." : "",
-      evidence: [],
-      sources: [],
-      details: {},
-    };
+function FundamentalTab({
+  status,
+  summary,
+  sources,
+}: {
+  status: AgentStatus;
+  summary: FundamentalVisualSummary;
+  sources: SourceReference[];
+}) {
+  if (status !== "completed" && !hasFundamentalContent(summary)) {
+    return <MinimalPending status={status} />;
   }
 
-  const displayWorker = buildDisplayWorker(worker);
-
-  return {
-    key: base.key,
-    title: base.title,
-    rating: extractWorkerRating(worker, displayWorker),
-    stream: buildWorkerSummary(worker, displayWorker, normalizedStatus),
-    evidence: extractEvidence(displayWorker),
-    sources: extractSources(base.key, displayWorker),
-    chartUrl: base.key === "technical" && typeof displayWorker.chart_path === "string" ? getSupervisorRunTechnicalChartUrl(runId) : undefined,
-    details: extractDetails(displayWorker),
-    status: normalizedStatus,
-  };
+  return (
+    <div className="grid gap-4">
+      <div className="grid gap-3 md:grid-cols-5">
+        <MetricCard label="Stance" value={summary.stance} />
+        <MetricCard label="Revenue" value={summary.revenue_display} />
+        <MetricCard label="Growth" value={formatPercent(summary.revenue_growth_pct)} />
+        <MetricCard label="Margin" value={formatPercent(summary.profit_margin_pct)} />
+        <MetricCard label="D/E" value={formatNumber(summary.debt_to_equity)} />
+      </div>
+      <div className="grid gap-3 lg:grid-cols-3">
+        <ListCard title="Positive" items={summary.top_positives} />
+        <ListCard title="Risk" items={summary.top_risks} />
+        <ListCard title="Watch" items={summary.watch_items} />
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <MetricPanel title="Cash Flow" value={summary.cash_flow_view} />
+        <MetricPanel title="Valuation" value={summary.valuation_view} />
+      </div>
+      <SourceSection title="Sources" items={sources} />
+    </div>
+  );
 }
 
-function buildSupervisorOutput(run: SupervisorRun): SupervisorOutput {
+function TechnicalTab({
+  status,
+  summary,
+  chartUrl,
+}: {
+  status: AgentStatus;
+  summary: TechnicalVisualSummary;
+  chartUrl?: string;
+}) {
+  if (status !== "completed" && !hasTechnicalContent(summary) && !chartUrl) {
+    return <MinimalPending status={status} />;
+  }
+
+  return (
+    <div className="grid gap-4">
+      <div className="grid gap-3 md:grid-cols-6">
+        <MetricCard label="Stance" value={summary.stance} />
+        <MetricCard label="Price" value={formatNumber(summary.current_price)} />
+        <MetricCard label="RSI" value={formatNumber(summary.rsi)} />
+        <MetricCard label="vs MA20" value={formatPercent(summary.distance_to_ma20_pct)} />
+        <MetricCard label="vs MA50" value={formatPercent(summary.distance_to_ma50_pct)} />
+        <MetricCard label="MACD" value={summary.macd_signal_state} />
+      </div>
+      <div className="grid gap-3 lg:grid-cols-[1.25fr_0.75fr]">
+        <section className="overflow-hidden rounded-2xl border border-line bg-white p-3">
+          <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">Chart</div>
+          {chartUrl ? (
+            <img src={chartUrl} alt="Technical chart" className="h-auto w-full rounded-xl border border-line object-contain" />
+          ) : (
+            <div className="rounded-xl border border-dashed border-line px-4 py-10 text-center text-sm text-muted">Pending</div>
+          )}
+        </section>
+        <div className="grid gap-3">
+          <MetricPanel title="Trend" value={summary.trend_state} />
+          <MetricPanel title="Momentum" value={summary.momentum_state} />
+          <MetricPanel title="Setup" value={summary.setup} />
+        </div>
+      </div>
+      <div className="grid gap-3 lg:grid-cols-4">
+        <ListCard title="Support" items={summary.support_levels} />
+        <ListCard title="Resistance" items={summary.resistance_levels} />
+        <ListCard title="Risk" items={summary.top_risks} />
+        <ListCard title="Watch" items={summary.watch_items} />
+      </div>
+    </div>
+  );
+}
+
+function NewsTab({
+  status,
+  summary,
+  sources,
+}: {
+  status: AgentStatus;
+  summary: NewsVisualSummary;
+  sources: SourceReference[];
+}) {
+  if (status !== "completed" && !hasNewsContent(summary)) {
+    return <MinimalPending status={status} />;
+  }
+
+  return (
+    <div className="grid gap-4">
+      <div className="grid gap-3 md:grid-cols-5">
+        <MetricCard label="Stance" value={summary.stance} />
+        <MetricCard label="Sentiment" value={formatNumber(summary.sentiment_score)} />
+        <MetricCard label="Positive" value={formatNumber(summary.positive_count)} />
+        <MetricCard label="Negative" value={formatNumber(summary.negative_count)} />
+        <MetricCard label="Balance" value={balanceLabel(summary)} />
+      </div>
+      <div className="grid gap-3 lg:grid-cols-3">
+        <ListCard title="Positive" items={summary.positive_points} />
+        <ListCard title="Negative" items={summary.negative_points} />
+        <ListCard title="Watch" items={summary.watch_items} />
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <ListCard title="Tailwinds" items={summary.sector_tailwinds} />
+        <ListCard title="Headwinds" items={summary.sector_headwinds} />
+      </div>
+      <SourceSection title="Sources" items={sources} />
+    </div>
+  );
+}
+
+function SummaryBucket({ title, items, emptyLabel }: { title: string; items?: string[]; emptyLabel: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">{title}</div>
+      <div className="mt-3 space-y-2">
+        {items && items.length > 0 ? (
+          items.slice(0, 3).map((item) => <div key={item} className="text-sm leading-5 text-slate-100">{item}</div>)
+        ) : (
+          <div className="text-sm text-slate-400">{emptyLabel}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ListCard({ title, items }: { title: string; items?: string[] }) {
+  return (
+    <section className="rounded-2xl border border-line bg-white p-4">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">{title}</div>
+      <div className="mt-3 space-y-2">
+        {items && items.length > 0 ? (
+          items.slice(0, 4).map((item) => <div key={item} className="text-sm leading-5 text-slate-800">{item}</div>)
+        ) : (
+          <div className="text-sm text-muted">Pending</div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function MetricCard({ label, value }: { label: string; value?: string | number | null }) {
+  return (
+    <section className="rounded-2xl border border-line bg-slate-50 p-4">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">{label}</div>
+      <div className="mt-2 text-base font-semibold text-slate-900">{value ?? "Pending"}</div>
+    </section>
+  );
+}
+
+function MetricPanel({ title, value }: { title: string; value?: string | null }) {
+  return (
+    <section className="rounded-2xl border border-line bg-white p-4">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">{title}</div>
+      <div className="mt-3 text-sm leading-6 text-slate-800">{value || "Pending"}</div>
+    </section>
+  );
+}
+
+function SourceSection({ title, items }: { title: string; items: SourceReference[] }) {
+  return (
+    <section className="rounded-2xl border border-line bg-white p-4">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">{title}</div>
+      <div className="mt-3 grid gap-2">
+        {items.length > 0 ? (
+          items.map((item) =>
+            item.href ? (
+              <a
+                key={`${item.label}-${item.href}`}
+                href={item.href}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-xl border border-line px-3 py-2 text-sm text-blue-700 hover:bg-slate-50"
+              >
+                {item.label}
+              </a>
+            ) : (
+              <div key={item.label} className="rounded-xl border border-line px-3 py-2 text-sm text-slate-700">
+                {item.label}
+              </div>
+            ),
+          )
+        ) : (
+          <div className="text-sm text-muted">Pending</div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function MinimalPending({ status }: { status: AgentStatus }) {
+  return <div className="rounded-2xl border border-dashed border-line px-4 py-10 text-center text-sm text-muted">{minimalStatusCopy(status)}</div>;
+}
+
+function StatusPill({ label, tone }: { label: string; tone: "positive" | "caution" | "negative" | "neutral" }) {
+  const classes =
+    tone === "positive"
+      ? "bg-emerald-500/15 text-emerald-200"
+      : tone === "caution"
+        ? "bg-amber-500/15 text-amber-200"
+        : tone === "negative"
+          ? "bg-rose-500/15 text-rose-200"
+          : "bg-white/10 text-slate-200";
+  return <div className={`rounded-full px-3 py-1.5 text-xs font-semibold ${classes}`}>{label}</div>;
+}
+
+function buildTimelineSteps(run: SupervisorRun | null): TimelineStep[] {
+  return timelineSteps.map((step) => {
+    if (step.id === "fundamental") {
+      return { ...step, status: run?.fundamentalStatus ?? "idle" };
+    }
+    if (step.id === "technical") {
+      return { ...step, status: run?.technicalStatus ?? "idle" };
+    }
+    if (step.id === "news") {
+      return { ...step, status: run?.newsStatus ?? "idle" };
+    }
+    if (step.id === "supervisor") {
+      return { ...step, status: normalizeAgentStatus(run?.status) };
+    }
+    return step;
+  });
+}
+
+function buildFallbackContributions(run: SupervisorRun) {
   const supervisor = (run.supervisor ?? {}) as SupervisorResult;
   const weights = supervisor.metadata?.weights ?? {};
-  return {
-    rating: typeof supervisor.final_rating === "number" ? supervisor.final_rating : run.finalRating,
-    status: normalizeAgentStatus(run.status),
-    summary: typeof supervisor.summary === "string" ? supervisor.summary : run.status === "running" ? "Supervisor workflow is still executing." : "",
-    weights: {
-      fundamental: weights.fundamental ?? 0.45,
-      technical: weights.technical ?? 0.3,
-      news: weights.news ?? 0.25,
-    },
-  };
+  return (["fundamental", "technical", "news"] as AgentKey[]).map((name) => ({
+    name,
+    rating: name === "fundamental" ? run.fundamental?.rating : name === "technical" ? run.technical?.rating : run.news?.rating,
+    weight_pct: Math.round(((weights[name] ?? defaultWeight(name)) * 1000)) / 10,
+    contribution_pct: undefined,
+  }));
 }
 
-function extractEvidence(worker: WorkerResult): string[] {
-  const entries = Object.entries(worker)
-    .filter(([key, value]) => Array.isArray(value) && value.length > 0 && !["sources"].includes(key))
-    .flatMap(([, value]) => (value as unknown[]).map((item) => String(item)));
-  return entries.slice(0, 6);
+function defaultWeight(name: AgentKey) {
+  if (name === "fundamental") return 0.45;
+  if (name === "technical") return 0.3;
+  return 0.25;
 }
 
-function extractDetails(worker: WorkerResult): Record<string, string | string[]> {
-  const details: Record<string, string | string[]> = {};
-  Object.entries(worker).forEach(([key, value]) => {
-    if (["answer", "rating", "question", "chart_path", "artifact", "sources"].includes(key) || value == null) return;
-    if (Array.isArray(value)) {
-      const formattedArray = formatArrayValue(value);
-      if (formattedArray.length > 0) {
-        details[prettyLabel(key)] = formattedArray;
-      }
-      return;
-    }
-    if (typeof value === "object") {
-      const formatted = formatNestedValue(value);
-      if (formatted) {
-        details[prettyLabel(key)] = formatted;
-      }
-      return;
-    }
-    details[prettyLabel(key)] = String(value);
-  });
-  if (Object.keys(details).length === 0 && typeof worker.question === "string") {
-    details.Question = worker.question;
-  }
-  return details;
-}
-
-function prettyLabel(value: string): string {
-  return value
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-function buildDisplayWorker(worker: WorkerResult): WorkerResult {
-  const parsedAnswer = parseJsonObject(worker.answer);
-  if (!parsedAnswer) {
-    return worker;
-  }
-
-  return {
-    ...parsedAnswer,
-    company_name: worker.company_name ?? readString(parsedAnswer.company_name),
-    ticker: worker.ticker ?? readString(parsedAnswer.ticker),
-    sector: worker.sector ?? readString(parsedAnswer.sector),
-    sources: Array.isArray(worker.sources) ? worker.sources : parsedAnswer.sources,
-    question: worker.question,
-    answer: worker.answer,
-    rating: worker.rating,
-    chart_path: worker.chart_path,
-    artifact: worker.artifact,
-  };
-}
-
-function buildWorkerSummary(worker: WorkerResult, displayWorker: WorkerResult, status: AgentOutput["status"]): string {
-  const parsedAnswer = parseJsonObject(worker.answer);
-  if (parsedAnswer) {
-    const structuredSummary = firstStructuredSummary(parsedAnswer);
-    if (structuredSummary) {
-      return structuredSummary;
-    }
-  }
-
-  if (typeof worker.answer === "string" && worker.answer.trim()) {
-    return worker.answer;
-  }
-
-  if (status === "running") {
-    return "Worker is executing on the backend.";
-  }
-
-  const fallbackSummary = firstStructuredSummary(displayWorker);
-  return fallbackSummary ?? "";
-}
-
-function extractWorkerRating(worker: WorkerResult, displayWorker: WorkerResult): number | undefined {
-  if (typeof worker.rating === "number") {
-    return worker.rating;
-  }
-
-  const candidates = ["fundamental_rating", "technical_rating", "news_rating", "sentiment_score", "score"];
-  for (const key of candidates) {
-    const value = displayWorker[key];
-    if (typeof value === "number") {
-      return value;
-    }
-  }
-
-  return undefined;
-}
-
-function parseJsonObject(value: unknown): WorkerResult | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const trimmed = value.trim();
-  if (!trimmed.startsWith("{")) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(trimmed);
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as WorkerResult) : null;
-  } catch {
-    return null;
-  }
-}
-
-function firstStructuredSummary(payload: WorkerResult): string | null {
-  const preferredFields = ["rationale", "trend", "summary", "sector_context", "stock_implications", "support_resistance"];
-  for (const field of preferredFields) {
-    const value = payload[field];
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-  }
-
-  const preferredLists = ["positive_developments", "negative_developments", "watch_items", "growth", "risks"];
-  for (const field of preferredLists) {
-    const value = payload[field];
-    if (Array.isArray(value) && value.length > 0) {
-      return String(value[0]);
-    }
-  }
-
-  return null;
-}
-
-function formatNestedValue(value: unknown): string | string[] | null {
-  if (Array.isArray(value)) {
-    return value.map((item) => String(item));
-  }
-
-  if (!value || typeof value !== "object") {
-    return value == null ? null : String(value);
-  }
-
-  const record = value as Record<string, unknown>;
-  if (typeof record.title === "string" && typeof record.url === "string") {
-    return `${record.title} (${record.url})`;
-  }
-
-  const parts = Object.entries(record)
-    .map(([key, item]) => {
-      if (item == null) return null;
-      return `${prettyLabel(key)}: ${Array.isArray(item) ? item.join(", ") : String(item)}`;
-    })
-    .filter((item): item is string => Boolean(item));
-
-  if (parts.length === 0) {
-    return null;
-  }
-
-  return parts;
-}
-
-function formatArrayValue(value: unknown[]): string[] {
-  return value
-    .flatMap((item) => {
-      const formatted = typeof item === "object" && item !== null ? formatNestedValue(item) : String(item);
-      if (!formatted) return [];
-      return Array.isArray(formatted) ? formatted : [formatted];
-    })
-    .filter((item) => item.trim().length > 0);
-}
-
-function extractSources(agentKey: AgentKey, worker: WorkerResult): SourceReference[] {
+function extractFundamentalSources(worker: WorkerResult): SourceReference[] {
   const rawSources = worker.sources;
-  if (!Array.isArray(rawSources)) {
-    return [];
-  }
+  if (!Array.isArray(rawSources)) return [];
+  return rawSources.reduce<SourceReference[]>((items, item) => {
+    if (!item || typeof item !== "object") return items;
+    const record = item as Record<string, unknown>;
+    const documentName = readString(record.document_name) ?? "Annual report";
+    const pageNumber = typeof record.page_number === "number" ? record.page_number : undefined;
+    const headingPath = readString(record.heading_path);
+    const parts = [documentName];
+    if (pageNumber) parts.push(`Page ${pageNumber}`);
+    if (headingPath) parts.push(headingPath);
+    items.push({ label: parts.join(" · ") });
+    return items;
+  }, []);
+}
 
-  if (agentKey === "news") {
-    return rawSources.reduce<SourceReference[]>((items, item) => {
-      if (!item || typeof item !== "object") return items;
-      const title = readString((item as Record<string, unknown>).title);
-      const href = readString((item as Record<string, unknown>).url);
-      if (!title || !href) return items;
+function extractNewsSources(worker: WorkerResult): SourceReference[] {
+  const rawSources = worker.sources;
+  if (!Array.isArray(rawSources)) return [];
+  return rawSources.reduce<SourceReference[]>((items, item) => {
+    if (!item || typeof item !== "object") return items;
+    const record = item as Record<string, unknown>;
+    const title = readString(record.title);
+    const href = readString(record.url);
+    if (title && href) {
       items.push({ label: title, href });
-      return items;
-    }, []);
-  }
+    }
+    return items;
+  }, []);
+}
 
-  if (agentKey === "fundamental") {
-    return rawSources.reduce<SourceReference[]>((items, item) => {
-      if (!item || typeof item !== "object") return items;
-      const record = item as Record<string, unknown>;
-      const documentName = readString(record.document_name) ?? "Annual report";
-      const pageNumber = typeof record.page_number === "number" ? record.page_number : undefined;
-      const headingPath = readString(record.heading_path);
-      const parts = [documentName];
-      if (pageNumber) parts.push(`Page ${pageNumber}`);
-      if (headingPath) parts.push(headingPath);
-      items.push({ label: parts.join(" · ") });
-      return items;
-    }, []);
-  }
+function hasFundamentalContent(summary: FundamentalVisualSummary) {
+  return Boolean(
+    summary.stance ||
+      summary.revenue_display ||
+      (summary.top_positives && summary.top_positives.length > 0) ||
+      (summary.top_risks && summary.top_risks.length > 0),
+  );
+}
 
-  return [];
+function hasTechnicalContent(summary: TechnicalVisualSummary) {
+  return Boolean(
+    summary.stance ||
+      summary.trend_state ||
+      summary.current_price != null ||
+      (summary.top_risks && summary.top_risks.length > 0),
+  );
+}
+
+function hasNewsContent(summary: NewsVisualSummary) {
+  return Boolean(
+    summary.stance ||
+      summary.sentiment_score != null ||
+      (summary.positive_points && summary.positive_points.length > 0) ||
+      (summary.negative_points && summary.negative_points.length > 0),
+  );
+}
+
+function balanceLabel(summary: NewsVisualSummary) {
+  const positive = summary.positive_count ?? 0;
+  const negative = summary.negative_count ?? 0;
+  if (positive > negative) return "Positive";
+  if (negative > positive) return "Negative";
+  return "Mixed";
+}
+
+function formatPercent(value?: number | null) {
+  if (typeof value !== "number") return undefined;
+  return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
+}
+
+function formatNumber(value?: number | null) {
+  if (typeof value !== "number") return undefined;
+  if (Math.abs(value) >= 1000) return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  return value.toFixed(Math.abs(value) >= 100 ? 1 : 2).replace(/\.00$/, "");
+}
+
+function toneFromRating(rating?: number | null): "positive" | "caution" | "negative" | "neutral" {
+  if (typeof rating !== "number") return "neutral";
+  if (rating >= 65) return "positive";
+  if (rating >= 45) return "caution";
+  return "negative";
+}
+
+function toneFillClass(tone: "positive" | "caution" | "negative" | "neutral") {
+  if (tone === "positive") return "bg-emerald-500";
+  if (tone === "caution") return "bg-amber-500";
+  if (tone === "negative") return "bg-rose-500";
+  return "bg-slate-400";
+}
+
+function describeStatus(status: string) {
+  if (status === "completed") return "Completed";
+  if (status === "running") return "Running";
+  if (status === "failed") return "Failed";
+  return "Queued";
+}
+
+function minimalStatusCopy(status: string) {
+  if (status === "completed") return "Ready";
+  if (status === "running") return "Running";
+  if (status === "failed" || status === "error") return "Failed";
+  return "Queued";
 }
 
 function readString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
 }
 
-function normalizeAgentStatus(status: string | undefined): AgentOutput["status"] {
+function normalizeAgentStatus(status: string | undefined): AgentStatus {
   if (status === "queued") return "idle";
   if (status === "failed") return "error";
   if (status === "running" || status === "completed" || status === "error" || status === "idle") return status;

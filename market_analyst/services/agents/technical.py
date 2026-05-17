@@ -14,8 +14,9 @@ from market_analyst.services.charting import (
     generate_technical_chart,
     summarize_chart_artifact,
 )
-from market_analyst.services.scoring import extract_rating_from_text
+from market_analyst.services.scoring import extract_rating_from_text, parse_json_object
 from market_analyst.telemetry import invoke_model_with_tracing
+from market_analyst.services.visual_summaries import build_technical_visual_summary
 from market_analyst.types.technical import (
     TechnicalAnalysisRequest,
     TechnicalAnalysisResult,
@@ -41,6 +42,7 @@ def run_technical_analysis_agent(
     prices_with_indicators = add_technical_indicators(prices)
     artifact = generate_technical_chart(request.ticker, prices_with_indicators, output_dir=output_dir)
     answer = analyze_technical_chart(settings, artifact=artifact, question=question)
+    payload = parse_json_object(answer)
     rating = extract_rating_from_text(answer, keys=("technical_rating", "technical_score", "rating", "score"))
     return TechnicalAnalysisResult(
         ticker=artifact.ticker,
@@ -49,6 +51,8 @@ def run_technical_analysis_agent(
         rating=rating,
         chart_path=artifact.chart_path,
         artifact=artifact,
+        structured_output=payload,
+        visual_summary=build_technical_visual_summary(payload, rating=rating, artifact=artifact),
     )
 
 
@@ -99,10 +103,13 @@ specific observations from the chart.
 Return only valid JSON with this schema:
 {{
   "ticker": "string",
+  "stance": "string",
   "technical_rating": 1,
   "trend": "string",
   "momentum": "string",
+  "setup": "string",
   "support_resistance": "string",
+  "watch_items": ["string"],
   "risks": ["string"],
   "rationale": "string"
 }}
