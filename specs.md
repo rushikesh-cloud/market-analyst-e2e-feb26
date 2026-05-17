@@ -11,6 +11,7 @@ A full-stack, multi-agent system designed to provide 360-degree market intellige
 * **Authentication:** Local email/password auth plus Google OAuth with server-managed cookie sessions.
 * **Orchestration:** LangChain v0.1 (Agent Objects) + LangGraph (Stateful Workflows).
 * **LLMs:** Azure OpenAI (GPT-4o for complex reasoning, GPT-4o-mini for vision/summarization).
+* **Observability:** Opik tracing for LangChain agent executions and direct Azure chat-model analysis calls when `OPIK_*` settings are configured.
 * **Database:** PostgreSQL with `pgvector` for Hybrid Search (Vector + Full-Text).
 * **Tools:**
 * **Fundamental:** Azure AI Document Intelligence.

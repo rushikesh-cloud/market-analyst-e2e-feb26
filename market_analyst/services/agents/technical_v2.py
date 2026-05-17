@@ -21,6 +21,7 @@ from market_analyst.services.charting_v2 import (
     summarize_chart_artifact_v2,
 )
 from market_analyst.services.scoring import extract_rating_from_text
+from market_analyst.telemetry import invoke_agent_with_tracing, invoke_model_with_tracing
 from market_analyst.types.technical_v2 import (
     TechnicalAnalysisV2Request,
     TechnicalAnalysisV2Result,
@@ -138,7 +139,18 @@ def run_technical_analysis_agent_v2(
     question = request.question or DEFAULT_TECHNICAL_V2_QUESTION
     agent, runtime_state = build_technical_analysis_v2_agent(settings=settings, output_dir=output_dir)
     prompt = build_technical_analysis_v2_prompt(request=request, question=question)
-    result = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
+    result = invoke_agent_with_tracing(
+        agent,
+        {"messages": [{"role": "user", "content": prompt}]},
+        settings,
+        run_name="technical-analysis-agent-v2",
+        tags=("agent", "technical", "technical-v2"),
+        metadata={
+            "ticker": request.ticker,
+            "period": request.period,
+            "interval": request.interval,
+        },
+    )
     answer = extract_final_message_content(result)
     rating = extract_rating_from_text(answer, keys=("technical_rating", "technical_score", "rating", "score"))
     chart_id = runtime_state.get("latest_chart_id")
@@ -179,7 +191,19 @@ def analyze_technical_chart_v2_artifact(
     question: str,
 ) -> str:
     model = build_chat_model(settings, temperature=0.1)
-    response = model.invoke([build_multimodal_chart_message_v2(artifact=artifact, question=question)])
+    response = invoke_model_with_tracing(
+        model,
+        [build_multimodal_chart_message_v2(artifact=artifact, question=question)],
+        settings,
+        run_name="technical-chart-analysis-v2",
+        tags=("llm", "technical", "technical-v2", "multimodal"),
+        metadata={
+            "ticker": artifact.ticker,
+            "period": artifact.period,
+            "interval": artifact.interval,
+            "chart_path": str(artifact.chart_path),
+        },
+    )
     return str(response.content)
 
 

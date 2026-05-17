@@ -6,6 +6,7 @@ from market_analyst.config.settings import Settings
 from market_analyst.repositories.vector_db import hybrid_search
 from market_analyst.services.agent import build_market_analysis_agent
 from market_analyst.services.scoring import extract_rating_from_text
+from market_analyst.telemetry import invoke_agent_with_tracing
 from market_analyst.types.fundamental import FundamentalAnalysisRequest, FundamentalAnalysisResult, FundamentalSourceReference
 
 
@@ -68,7 +69,18 @@ def run_fundamental_analysis_agent(
         document_id=request.document_id,
     )
     prompt = build_fundamental_analysis_prompt(request=request, question=question)
-    result = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
+    result = invoke_agent_with_tracing(
+        agent,
+        {"messages": [{"role": "user", "content": prompt}]},
+        settings,
+        run_name="fundamental-analysis-agent",
+        tags=("agent", "fundamental"),
+        metadata={
+            "company_name": request.company_name,
+            "ticker": normalized_ticker,
+            "document_id": request.document_id,
+        },
+    )
     answer = extract_final_message_content(result)
     rating = extract_rating_from_text(answer, keys=("fundamental_rating", "rating", "score"))
     sources = compile_fundamental_sources(

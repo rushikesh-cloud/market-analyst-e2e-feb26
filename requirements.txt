@@ -8,6 +8,7 @@ langchain-tavily>=0.2.0
 langchain-postgres>=0.0.16
 langchain-text-splitters>=1.0.0
 matplotlib>=3.10.8
+opik>=1.8.22
 pandas>=2.3.3
 pgvector>=0.3.6
 psycopg[binary]>=3.2.13

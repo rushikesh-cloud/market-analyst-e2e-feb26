@@ -11,6 +11,7 @@ from market_analyst.services.agent import build_chat_model
 from market_analyst.services.agents.fundamental import run_fundamental_analysis_agent
 from market_analyst.services.agents.news import run_news_analysis_agent
 from market_analyst.services.agents.technical import run_technical_analysis_agent
+from market_analyst.telemetry import invoke_agent_with_tracing
 from market_analyst.types.fundamental import FundamentalAnalysisRequest, FundamentalAnalysisResult
 from market_analyst.types.news import NewsAnalysisRequest, NewsAnalysisResult
 from market_analyst.types.supervisor import SupervisorAnalysisResult
@@ -103,7 +104,19 @@ def build_supervisor_chat_tools(settings: Settings, context: SupervisorChatConte
 def run_supervisor_chat_turn(settings: Settings, request: SupervisorChatRequest) -> SupervisorChatResponse:
     agent = build_supervisor_chat_agent(settings=settings, context=request.context)
     messages = build_supervisor_chat_messages(request)
-    result = agent.invoke({"messages": messages})
+    result = invoke_agent_with_tracing(
+        agent,
+        {"messages": messages},
+        settings,
+        run_name="supervisor-chat-agent",
+        tags=("agent", "supervisor", "chat"),
+        metadata={
+            "company_name": request.context.company_name,
+            "ticker": request.context.ticker,
+            "sector": request.context.sector,
+            "history_messages": len(request.history),
+        },
+    )
     answer = extract_final_message_content(result)
     return SupervisorChatResponse(
         answer=answer,

@@ -42,6 +42,10 @@ class Settings:
     azure_openai_chat_deployment: str
     azure_openai_embedding_deployment: str
     tavily_api_key: str
+    opik_api_key: str = ""
+    opik_workspace: str = ""
+    opik_project_name: str = "market-analyst"
+    opik_url_override: str = ""
     frontend_app_url: str = "http://localhost:3000"
     auth_session_cookie_name: str = "market_analyst_session"
     auth_session_ttl_hours: int = 336
@@ -173,6 +177,10 @@ def load_settings() -> Settings:
         ),
         azure_openai_embedding_deployment=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", ""),
         tavily_api_key=os.getenv("TAVILY_API_KEY", ""),
+        opik_api_key=os.getenv("OPIK_API_KEY", ""),
+        opik_workspace=os.getenv("OPIK_WORKSPACE", ""),
+        opik_project_name=os.getenv("OPIK_PROJECT_NAME", "market-analyst"),
+        opik_url_override=os.getenv("OPIK_URL_OVERRIDE", ""),
         frontend_app_url=os.getenv("FRONTEND_APP_URL", "http://localhost:3000").rstrip("/"),
         auth_session_cookie_name=os.getenv("AUTH_SESSION_COOKIE_NAME", "market_analyst_session"),
         auth_session_ttl_hours=int(os.getenv("AUTH_SESSION_TTL_HOURS", "336")),

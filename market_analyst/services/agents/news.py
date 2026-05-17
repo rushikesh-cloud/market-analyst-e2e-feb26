@@ -8,6 +8,7 @@ from market_analyst.config.settings import Settings
 from market_analyst.providers.tavily import build_tavily_search_tool
 from market_analyst.services.agent import build_chat_model
 from market_analyst.services.scoring import extract_rating, normalize_rating, parse_json_object
+from market_analyst.telemetry import invoke_agent_with_tracing
 from market_analyst.types.news import NewsAnalysisRequest, NewsAnalysisResult, NewsSourceReference
 
 
@@ -78,7 +79,19 @@ def run_news_analysis_agent(settings: Settings, request: NewsAnalysisRequest) ->
     )
     question = request.question or DEFAULT_NEWS_ANALYSIS_QUESTION
     prompt = build_news_analysis_prompt(request=request, question=question)
-    result = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
+    result = invoke_agent_with_tracing(
+        agent,
+        {"messages": [{"role": "user", "content": prompt}]},
+        settings,
+        run_name="news-analysis-agent",
+        tags=("agent", "news"),
+        metadata={
+            "company_name": request.company_name,
+            "ticker": request.ticker,
+            "sector": request.sector,
+            "time_range": request.time_range,
+        },
+    )
     answer = extract_final_message_content(result)
     payload = parse_json_object(answer)
     rating = extract_rating(payload, keys=("rating", "sentiment_score", "news_rating", "score"))

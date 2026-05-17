@@ -14,6 +14,7 @@ from market_analyst.services.charting import (
     summarize_chart_artifact,
 )
 from market_analyst.services.scoring import extract_rating_from_text
+from market_analyst.telemetry import invoke_model_with_tracing
 from market_analyst.types.technical import (
     TechnicalAnalysisRequest,
     TechnicalAnalysisResult,
@@ -57,7 +58,17 @@ def analyze_technical_chart(
 ) -> str:
     model = build_chat_model(settings, temperature=0.1)
     message = build_multimodal_chart_message(artifact=artifact, question=question)
-    response = model.invoke([message])
+    response = invoke_model_with_tracing(
+        model,
+        [message],
+        settings,
+        run_name="technical-chart-analysis",
+        tags=("llm", "technical", "multimodal"),
+        metadata={
+            "ticker": artifact.ticker,
+            "chart_path": str(artifact.chart_path),
+        },
+    )
     return str(response.content)
 
 
