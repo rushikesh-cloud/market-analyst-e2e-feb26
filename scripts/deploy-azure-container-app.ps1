@@ -63,9 +63,9 @@ function Add-Secret {
 }
 
 function Get-AzOptionalValue {
-    param([string]$Command)
+    param([string[]]$Arguments)
 
-    $output = cmd /c "$Command 2>NUL"
+    $output = & az @Arguments 2>$null
     if ($LASTEXITCODE -ne 0) {
         return ""
     }
@@ -122,10 +122,11 @@ if ($SubscriptionId) {
     az account set --subscription $SubscriptionId | Out-Null
 }
 
-if (-not $env:REQUESTS_CA_BUNDLE) {
-    $env:REQUESTS_CA_BUNDLE = "C:\temp\azcli-ca-bundle.pem"
+$defaultCaBundle = "C:\temp\azcli-ca-bundle.pem"
+if (-not $env:REQUESTS_CA_BUNDLE -and (Test-Path $defaultCaBundle)) {
+    $env:REQUESTS_CA_BUNDLE = $defaultCaBundle
 }
-if (-not $env:SSL_CERT_FILE) {
+if (-not $env:SSL_CERT_FILE -and -not [string]::IsNullOrWhiteSpace($env:REQUESTS_CA_BUNDLE)) {
     $env:SSL_CERT_FILE = $env:REQUESTS_CA_BUNDLE
 }
 
@@ -144,13 +145,13 @@ Write-Host "Ensuring Container Apps extension..."
 az extension add --name containerapp --upgrade | Out-Null
 
 Write-Host "Ensuring ACR $AcrName..."
-$acrExists = Get-AzOptionalValue "az acr show -n $AcrName -g $ResourceGroup --query ""name"" -o tsv"
+$acrExists = Get-AzOptionalValue @("acr", "show", "-n", $AcrName, "-g", $ResourceGroup, "--query", "name", "-o", "tsv")
 if (-not $acrExists) {
     az acr create -n $AcrName -g $ResourceGroup --sku Basic --admin-enabled true --location $Location | Out-Null
 }
 
 Write-Host "Ensuring ACA environment $ContainerEnvName..."
-$envExists = Get-AzOptionalValue "az containerapp env show -n $ContainerEnvName -g $ResourceGroup --query ""name"" -o tsv"
+$envExists = Get-AzOptionalValue @("containerapp", "env", "show", "-n", $ContainerEnvName, "-g", $ResourceGroup, "--query", "name", "-o", "tsv")
 if (-not $envExists) {
     az containerapp env create -n $ContainerEnvName -g $ResourceGroup -l $Location | Out-Null
 }
@@ -162,7 +163,7 @@ $initialSecrets = [System.Collections.Generic.List[string]]::new()
 $initialEnvVars = New-EnvVarList -FrontendUrl $frontendUrl -SecretList $initialSecrets -AuthSessionSecret $authSessionSecret
 
 Write-Host "Creating or updating container app $ContainerAppName..."
-$existingApp = Get-AzOptionalValue "az containerapp show -n $ContainerAppName -g $ResourceGroup --query ""name"" -o tsv"
+$existingApp = Get-AzOptionalValue @("containerapp", "show", "-n", $ContainerAppName, "-g", $ResourceGroup, "--query", "name", "-o", "tsv")
 if (-not $existingApp) {
     az containerapp create `
         -n $ContainerAppName `
